@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Portfolio Simulator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background-color: #f5f7fa;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      width: 30%;
+      background: #ffffff;
+      padding: 15px;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.05);
+      overflow-y: auto;
+    }
+
+    .sidebar h2 {
+      margin-bottom: 10px;
+    }
+
+    .sidebar h3 {
+      margin: 10px 0 5px 0;
+      font-size: 14px;
+    }
+
+    .input-group {
+      margin-bottom: 8px;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 2px;
+      color: #555;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 12px;
+    }
+
+    .slider-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .slider-group label {
+      width: 130px;
+      font-size: 11px;
+    }
+
+    .slider-group input[type="range"] {
+      flex: 1;
+    }
+
+    .slider-value {
+      width: 30px;
+      text-align: right;
+      font-size: 11px;
+    }
+
+    .total {
+      margin-top: 8px;
+      font-weight: bold;
+      text-align: right;
+      font-size: 13px;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 5px;
+      margin-top: 10px;
+    }
+
+    .buttons button {
+      flex: 1;
+      padding: 6px;
+      font-size: 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background-color: #6ec2facf;
+    }
+
+    .buttons button:hover {
+      background-color: #508ab2cf;
+    }
+
+    .main {
+      width: 70%;
+      padding: 25px;
+      overflow-y: auto;
+    }
+
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+    }
+
+    .chart-placeholder {
+      height: 300px;
+      background: #e9edf3;
+      border-radius: 8px;
+    }
+
+    .stats {
+      display: flex;
+      gap: 15px;
+    }
+
+    .stat-box {
+      flex: 1;
+      background: #ffffff;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+
+    .dd-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 15px;
+    }
+
+    .dd-card {
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 15px;
+      text-align: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      border-top: 4px solid #a61b1b;
+      transition: transform 0.15s ease;
+    }
+
+    .dd-card:hover {
+      transform: translateY(-3px);
+    }
+
+    .dd-title {
+      font-size: 13px;
+      color: #666;
+    }
+
+    .dd-depth {
+      font-size: 22px;
+      font-weight: 600;
+      color: #a61b1b;
+      margin: 8px 0;
+    }
+
+    .dd-dates {
+      font-size: 12px;
+      color: #777;
+      line-height: 1.4;
+    }
+
+    .dd-extra {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #999;
+    }
+
+
+
+  </style>
+
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="sidebar">
+    <h2>Inputs</h2>
+
+    <div class="input-group">
+      <label>Aporte inicial (USD)</label>
+      <input type="number" id="initialValue" placeholder="100" value="100">
+    </div>
+
+
+
+    <h3>Composición del portafolio</h3>
+
+    <div id="allocation-container"></div>
+
+    <div class="total">
+      Total: <span id="total">0%</span>
+    </div>
+
+    <div class="buttons">
+      <button onclick="setProfile('conservador')">Conservador</button>
+      <button onclick="setProfile('moderado')">Moderado</button>
+      <button onclick="setProfile('agresivo')">Agresivo</button>
+    </div>
+
+    <div class="input-group">
+      <label>Tipo de retorno</label>
+      <select id="returnType" style="
+        width:100%;
+        padding:6px;
+        border-radius:6px;
+        border:1px solid #ccc;
+        font-size:12px;
+      ">
+        <option value="nominal" selected>Nominal</option>
+        <option value="real">Real (ajustado por inflación)</option>
+      </select>
+    </div>
+
+
+    <button onclick="runSimulation()" style="width:100%; margin-top:10px; padding:8px; background:#456db8; color:white; border:none; border-radius:6px;">
+      Calcular Portafolio
+    </button>
+
+      <hr style="margin:15px 0; border:none; border-top:1px solid #eee;">
+
+      <h2 style="margin-top:10px;">Portafolio con retiros</h2>
+
+      <div class="input-group">
+        <label>Retiro anual (USD)</label>
+        <input type="number" id="withdrawalAmount" placeholder="Ej: 5000">
+      </div>
+
+      <div class="input-group">
+        <label>Año de inicio de retiros</label>
+        <input type="number" id="withdrawalStart" placeholder="Ej: 10">
+      </div>
+
+      <button onclick="runWithdrawalSimulation()" style="
+        width:100%;
+        margin-top:10px;
+        padding:8px;
+        background:#a65ad1;
+        color:white;
+        border:none;
+        border-radius:6px;
+      ">
+        Calcular Portafolio con retiros
+      </button>
+
+  </div>
+
+  <div class="main">
+
+  <!-- ========================= -->
+  <!-- VISTA ACUMULACIÓN -->
+  <!-- ========================= -->
+  <div id="accumulationView">
+
+    <div class="card">
+      <h3>Evolución del portafolio</h3>
+      <canvas id="portfolioChart"></canvas>
+    </div>
+
+    <div class="card">
+      <h3>Resumen de resultados</h3>
+      <div id="summaryStats"></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+  <h3>Distribución de retornos</h3>
+
+    <div style="display:flex; gap:10px;">
+
+    <!-- Rolling / No Rolling -->
+    <select id="histogramMode" style="
+      padding:6px;
+      border-radius:6px;
+      border:1px solid #ccc;
+      font-size:12px;
+    ">
+      <option value="rolling" selected>Rolling</option>
+      <option value="discreto">No rolling</option>
+    </select>
+
+    <!-- Frecuencia -->
+    <select id="histogramFrequency" style="
+      padding:6px;
+      border-radius:6px;
+      border:1px solid #ccc;
+      font-size:12px;
+    ">
+      <option value="mensual" selected>Mensual</option>
+      <option value="semestral">Semestral</option>
+      <option value="anual">Anual</option>
+    </select>
+
+    </div>
+    </div>
+
+      <canvas id="histogramChart"></canvas>
+    </div>
+
+    <div class="card">
+      <h3>Rolling Returns 1 Año</h3>
+
+      <div style="display:flex; gap:30px; align-items:stretch;">
+        
+      <div style="flex:2.5;">
+        <canvas id="rollingChart" style="height:300px;"></canvas>
+      </div>
+
+      <div style="flex:1.2; min-width:220px;">
+        <canvas id="rollingHistChart" style="height:300px;"></canvas>
+      </div>
+
+    </div>
+    </div>
+
+    <div class="card">
+     <h3>Peores Drawdowns</h3>
+      <canvas id="drawdownChart"></canvas>
+    </div>
+
+    <div class="card">
+      <h3>Detalle Drawdowns</h3>
+      <div id="drawdownCards" class="dd-container"></div>
+    </div>
+
+    <div class="card">
+      <h3>Simulación Monte Carlo (Block Bootstrap)</h3>
+      <canvas id="mcChart"></canvas>
+    </div>
+
+    <div class="card">
+      <h3>Resultados Monte Carlo</h3>
+      <div id="mcStats"></div>
+    </div>
+
+
+  </div> <!-- FIN accumulationView -->
+
+   
+
+  <!-- ========================= -->
+  <!-- VISTA RETIROS -->
+  <!-- ========================= -->
+  <div id="withdrawalView" style="display:none;">
+
+  <!-- 1. Evolución -->
+  <div class="card">
+    <h3>Evolución del portafolio (real, con retiros)</h3>
+    <canvas id="withdrawalChart"></canvas>
+  </div>
+
+  <!-- 2. Métricas -->
+  <div class="card">
+    <h3>Métricas clave</h3>
+    <div id="withdrawalStats"></div>
+  </div>
+
+  <!-- 3. Supervivencia -->
+  <div class="card">
+    <h3>Probabilidad de supervivencia</h3>
+    <canvas id="survivalChart"></canvas>
+  </div>
+
+  <!-- 4. Fan chart -->
+  <div class="card">
+    <h3>Trayectorias simuladas (P5 - P50 - P95)</h3>
+    <canvas id="fanChart"></canvas>
+  </div>
+
+  <!-- 5. Ruina -->
+  <div class="card">
+    <h3>Distribución del tiempo hasta ruina</h3>
+    <canvas id="ruinHistogram"></canvas>
+  </div>
+
+  <!-- 6. Sequencing -->
+  <div class="card">
+    <h3 style="margin-bottom:5px;">Sequencing Risk (best vs worst)</h3>
+
+    <div style="font-size:12px; color:#666; margin-bottom:10px;">
+  Muestra el impacto del orden de los retornos sobre el portafolio con retiros,
+  manteniendo los mismos retornos históricos pero reorganizados de mejor a peor y de peor a mejor.
+    </div>
+
+<canvas id="sequenceChart"></canvas>
+  </div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<script>
+
+
+let marketDataNominal = [];
+let marketDataReal = [];
+
+Papa.parse("data.csv", {
+  download: true,
+  header: true,
+  delimiter: ";",
+  dynamicTyping: false,
+  complete: function(results) {
+
+    marketDataNominal = results.data;
+
+// ==========================
+// CREAR DATA REAL
+// ==========================
+marketDataReal = JSON.parse(JSON.stringify(marketDataNominal));
+
+// 🔹 Inicializar primera fila
+for (let col in marketDataReal[0]) {
+  if (col !== "Fecha" && col !== "Inflacion") {
+    marketDataReal[0][col] = limpiarNumero(marketDataNominal[0][col]);
+  }
+}
+
+// 🔹 Construcción hacia adelante
+for (let t = 1; t < marketDataNominal.length; t++) {
+
+  let inflacionHoy = limpiarNumero(marketDataNominal[t]["Inflacion"]);
+  let inflacionAyer = limpiarNumero(marketDataNominal[t - 1]["Inflacion"]);
+
+  if (isNaN(inflacionHoy) || isNaN(inflacionAyer)) continue;
+
+  let pi = (inflacionHoy / inflacionAyer) - 1;
+
+  Object.keys(marketDataNominal[t]).forEach(col => {
+
+    if (col === "Fecha" || col === "Inflacion") return;
+
+    let precioHoy = limpiarNumero(marketDataNominal[t][col]);
+    let precioAyer = limpiarNumero(marketDataNominal[t - 1][col]);
+
+    if (isNaN(precioHoy) || isNaN(precioAyer)) return;
+
+    let rNom = (precioHoy / precioAyer) - 1;
+    let rReal = (1 + rNom) / (1 + pi) - 1;
+
+    let precioRealPrev = limpiarNumero(marketDataReal[t - 1][col]);
+
+    marketDataReal[t][col] = precioRealPrev * (1 + rReal);
+  });
+}
+
+    console.log("Datos nominales:", marketDataNominal);
+    console.log("Datos reales:", marketDataReal);
+  }
+});
+
+
+const assets = [
+  "Acciones USA",
+  "Acciones Europa",
+  "Acciones EM",
+  "Renta Fija Global IG",
+  "Renta Fija Global HY",
+  "Renta Fija EM",
+  "Money Market",
+  "Real Estate",
+  "Infrastructure",
+  "Oro",
+  "Commodities"
+];
+
+const container = document.getElementById("allocation-container");
+let slidersMap = {};
+
+assets.forEach(asset => {
+  const div = document.createElement("div");
+  div.className = "slider-group";
+
+  div.innerHTML = `
+    <label>${asset}</label>
+    <input type="range" min="0" max="100" value="0" class="slider">
+    <span class="slider-value">0%</span>
+  `;
+
+  container.appendChild(div);
+
+  const slider = div.querySelector(".slider");
+  const valueDisplay = div.querySelector(".slider-value");
+
+  slidersMap[asset] = slider;
+
+  slider.addEventListener("input", () => {
+    valueDisplay.textContent = slider.value + "%";
+    updateTotal();
+  });
+});
+
+const totalDisplay = document.getElementById("total");
+
+function updateTotal() {
+  let total = 0;
+  Object.values(slidersMap).forEach(slider => {
+    total += parseInt(slider.value);
+  });
+
+  totalDisplay.textContent = total + "%";
+  totalDisplay.style.color = total === 100 ? "green" : "red";
+}
+
+function setProfile(type) {
+
+  let profile = {};
+
+  if (type === "conservador") {
+    profile = {
+      "Renta Fija Global IG": 55,
+      "Money Market": 5,
+      "Renta Fija EM": 10,
+      "Acciones USA": 20,
+      "Oro": 10
+    };
+  }
+
+  if (type === "moderado") {
+    profile = {
+      "Renta Fija Global IG": 30,
+      "Renta Fija EM": 10,
+      "Renta Fija Global HY": 10,
+      "Acciones USA": 30,
+      "Acciones Europa": 5,
+      "Acciones EM": 5,
+      "Oro": 5,
+      "Money Market": 5
+    };
+  }
+
+  if (type === "agresivo") {
+    profile = {
+      "Money Market": 5,
+      "Renta Fija Global IG": 10,
+      "Renta Fija EM": 10,
+      "Acciones USA": 45,
+      "Acciones Europa": 15,
+      "Acciones EM": 10,
+      "Oro": 5
+    };
+  }
+
+  Object.keys(slidersMap).forEach(asset => {
+    const value = profile[asset] || 0;
+    slidersMap[asset].value = value;
+
+    const display = slidersMap[asset].nextElementSibling;
+    display.textContent = value + "%";
+  });
+
+  updateTotal();
+}
+
+updateTotal();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
