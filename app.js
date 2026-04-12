@@ -1,6 +1,8 @@
 // ==========================
 // VARIABLES GLOBALES
 // ==========================
+let allocationChart;
+
 let chart;
 let drawdownChart;
 let mcChart;
@@ -13,6 +15,7 @@ let survivalChart;
 let fanChart;
 let ruinChart;
 let sequenceChart;
+
 
 function mostrarAcumulacion() {
     document.getElementById("accumulationView").style.display = "block";
@@ -43,6 +46,188 @@ function getWeights() {
 
     return weights;
 }
+
+// ==========================
+// ASSET ALLOCATION POR CLASE DE ACTIVO
+// ==========================
+function agruparAssetAllocation(weights) {
+
+    let acciones = 
+        (weights["Acciones USA"] || 0) +
+        (weights["Acciones Europa"] || 0) +
+        (weights["Acciones EM"] || 0);
+
+    let rentaFija =
+        (weights["Renta Fija Global IG"] || 0) +
+        (weights["Renta Fija Global HY"] || 0) +
+        (weights["Renta Fija EM"] || 0);
+
+    let otros = {
+        "Money Market": weights["Money Market"] || 0,
+        "Real Estate": weights["Real Estate"] || 0,
+        "Infrastructure": weights["Infrastructure"] || 0,
+        "Oro": weights["Oro"] || 0,
+        "Commodities": weights["Commodities"] || 0
+    };
+
+    // ==========================
+    // COLORES FIJOS (CLAVE PRO)
+    // ==========================
+    const colorMap = {
+        "Acciones": "#1f3a8a",       // azul fuerte
+        "Renta Fija": "#60a5fa",     // celeste
+        "Money Market": "#9ca3af",   // gris medio
+        "Real Estate": "#a78bfa",    // violeta suave
+        "Infrastructure": "#34d399", // verde
+        "Oro": "#f59e0b",            // dorado
+        "Commodities": "#f97316"     // naranja
+    };
+
+    // ==========================
+    // ARMAR ITEMS
+    // ==========================
+    let items = [];
+
+    if (acciones > 0) {
+        items.push({ label: "Acciones", value: acciones * 100 });
+    }
+
+    if (rentaFija > 0) {
+        items.push({ label: "Renta Fija", value: rentaFija * 100 });
+    }
+
+    Object.keys(otros).forEach(k => {
+        if (otros[k] > 0) {
+            items.push({ label: k, value: otros[k] * 100 });
+        }
+    });
+
+    // ==========================
+    // ORDENAR (MAYOR → MENOR)
+    // ==========================
+    items.sort((a, b) => b.value - a.value);
+
+    // ==========================
+    // RECONSTRUIR
+    // ==========================
+    let labels = items.map(i => i.label);
+    let data = items.map(i => i.value);
+    let colors = items.map(i => colorMap[i.label] || "#cccccc");
+
+    // ==========================
+    // BREAKDOWN (para tooltip)
+    // ==========================
+    return {
+        labels,
+        data,
+        colors,
+        breakdown: {
+            acciones: {
+                "USA": (weights["Acciones USA"] || 0) * 100,
+                "Europa": (weights["Acciones Europa"] || 0) * 100,
+                "EM": (weights["Acciones EM"] || 0) * 100
+            },
+            rentaFija: {
+                "IG": (weights["Renta Fija Global IG"] || 0) * 100,
+                "HY": (weights["Renta Fija Global HY"] || 0) * 100,
+                "EM": (weights["Renta Fija EM"] || 0) * 100
+            }
+        }
+    };
+}
+function updateAllocationChart() {
+
+    const weights = getWeights();
+    const grouped = agruparAssetAllocation(weights);
+
+    const ctx = document.getElementById("allocationChart");
+
+    if (allocationChart) allocationChart.destroy();
+
+    allocationChart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+            labels: grouped.labels,
+            datasets: [{
+                data: grouped.data,
+                backgroundColor: grouped.colors, // 🔥 dinámico y consistente
+                borderWidth: 0
+            }]
+        },
+        options: {
+
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: "75%",
+
+            plugins: {
+
+            legend: {
+            position: "right",
+            labels: {
+            usePointStyle: true,
+            pointStyle: "circle",
+            padding: 15,
+
+                    generateLabels: function(chart) {
+
+                        const data = chart.data;
+                        const dataset = data.datasets[0];
+
+                        return data.labels.map((label, i) => {
+
+                            const value = dataset.data[i];
+                            const total = dataset.data.reduce((a, b) => a + b, 0);
+
+                            const pct = total > 0 ? (value / total * 100).toFixed(1) : 0;
+
+                            return {
+                                text: `${label} — ${pct}%`,
+                                fillStyle: dataset.backgroundColor[i],
+                                strokeStyle: dataset.backgroundColor[i],
+                                lineWidth: 0,
+                                hidden: false,
+                                index: i
+                            };
+                        });
+                    }
+                }
+            },
+
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+
+                        const label = context.label;
+                        const value = context.raw.toFixed(1);
+
+                        let lines = [`${label}: ${value}%`];
+
+                        if (label === "Acciones") {
+                            const b = grouped.breakdown.acciones;
+
+                            if (b["USA"] > 0) lines.push(`USA: ${b["USA"].toFixed(1)}%`);
+                            if (b["Europa"] > 0) lines.push(`Europa: ${b["Europa"].toFixed(1)}%`);
+                            if (b["EM"] > 0) lines.push(`EM: ${b["EM"].toFixed(1)}%`);
+                        }
+
+                        if (label === "Renta Fija") {
+                            const b = grouped.breakdown.rentaFija;
+
+                            if (b["IG"] > 0) lines.push(`IG: ${b["IG"].toFixed(1)}%`);
+                            if (b["HY"] > 0) lines.push(`HY: ${b["HY"].toFixed(1)}%`);
+                            if (b["EM"] > 0) lines.push(`EM: ${b["EM"].toFixed(1)}%`);
+                        }
+
+                        return lines;
+                    }
+                }
+            }
+        }
+        }
+    });
+}
+
 
 // ==========================
 // CÁLCULO PORTAFOLIO
