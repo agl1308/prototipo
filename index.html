@@ -265,6 +265,15 @@
 
   <div class="main">
 
+    <div class="card">
+      <h3>Asset Allocation</h3>
+
+      <div style="height:300px; max-width:500px; margin:auto;">
+        <canvas id="allocationChart"></canvas>
+      </div>
+
+    </div>
+
   <!-- ========================= -->
   <!-- VISTA ACUMULACIÓN -->
   <!-- ========================= -->
@@ -506,9 +515,10 @@ assets.forEach(asset => {
 
   slidersMap[asset] = slider;
 
-  slider.addEventListener("input", () => {
-    valueDisplay.textContent = slider.value + "%";
-    updateTotal();
+ slider.addEventListener("input", () => {
+  valueDisplay.textContent = slider.value + "%";
+  updateTotal();
+  updateAllocationChart();
   });
 });
 
@@ -572,9 +582,11 @@ function setProfile(type) {
   });
 
   updateTotal();
+  updateAllocationChart();
 }
 
 updateTotal();
+updateAllocationChart();
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
