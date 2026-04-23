@@ -709,7 +709,14 @@ function runWithdrawalSimulation() {
     graficarRuina(dist);
 
     // ===== MÉTRICAS =====
-    mostrarStatsRetiros(sim, base, valoresSin, initialValue, withdrawal);
+    mostrarStatsRetiros(
+    sim,
+    base,
+    valoresSin,
+    initialValue,
+    withdrawal,
+    resultado.retornos.length
+    );
 
     // ===== SEQUENCING =====
     const seq = analizarSequencing(
@@ -1425,7 +1432,7 @@ function graficarRetiros(fechas, valoresCon, valoresSin) {
 }
 
 
-function mostrarStatsRetiros(sim, base, valoresSin, initialValue, withdrawal) {
+function mostrarStatsRetiros(sim, base, valoresSin, initialValue, withdrawal, nMonths) {
 
     const pct = x => (x * 100).toFixed(2) + "%";
 
@@ -1451,8 +1458,6 @@ function mostrarStatsRetiros(sim, base, valoresSin, initialValue, withdrawal) {
     const finalCon = base.valores[base.valores.length - 1];
     const finalSin = valoresSin[valoresSin.length - 1];
 
-    const totalMonths = base.valores.length;
-    const years = totalMonths / 12;
 
     // número de retiros realizados
     const totalWithdrawals = base.totalWithdrawn;
@@ -1469,8 +1474,14 @@ console.log("Check:", (finalCon + totalWithdrawals) / initialValue - 1);
     const totalReturnSin = finalSin / initialValue - 1;
 
     // retorno anualizado
-    const annCon = Math.pow(1 + totalReturnCon, 1 / years) - 1;
-    const annSin = Math.pow(1 + totalReturnSin, 1 / years) - 1;
+// SIN retiros → usa toda la historia
+const yearsSin = nMonths / 12;
+
+// CON retiros → duración efectiva (puede ser menor si hay ruina)
+const yearsCon = (base.valores.length - 1) / 12;
+
+const annCon = Math.pow(1 + totalReturnCon, 1 / yearsCon) - 1;
+const annSin = Math.pow(1 + totalReturnSin, 1 / yearsSin) - 1;
 
     // ==========================
     // 3. HTML
@@ -1541,19 +1552,39 @@ function graficarSupervivencia(survival) {
 
     if (survivalChart) survivalChart.destroy();
 
-    const labels = survival.map((_, i) => (i/12).toFixed(1));
+    const labels = survival.map((_, i) => Math.floor(i / 12));
 
-    survivalChart = new Chart(ctx, {
-        type: "line",
-        data: {
-            labels,
-            datasets: [{
-                label: "Supervivencia",
-                data: survival,
-                borderWidth: 2
-            }]
-        }
-    });
+            survivalChart = new Chart(ctx, {
+            type: "line",
+            data: {
+                labels,
+                datasets: [{
+                    label: "Supervivencia",
+                    data: survival,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        min: 0,
+                        max: 1,
+                        ticks: {
+                            callback: v => (v * 100).toFixed(0) + "%"
+                        }
+                    },
+                    x: {
+                        ticks: {
+                        callback: function(value, index) {
+                        const label = this.getLabelForValue(value);
+                        return index % 12 === 0 ? label : "";
+                        }
+                        }
+                    }
+                }
+            }
+        });
 }
 
 
