@@ -2,19 +2,29 @@
 // VARIABLES GLOBALES
 // ==========================
 let allocationChart;
+let composicionChartInstance;
+
+const COMPOSICION_COLORS = [
+    "#e07b54", "#5b8dd9", "#54b89e", "#d4a843", "#9b6bb5",
+    "#e05c7a", "#6dbf6d", "#c97c3a", "#4fa8c4", "#b5845a",
+    "#7a9e4f", "#d46b8b", "#5e7ec2", "#c9a65a", "#6bb59b",
+    "#d47070", "#8a74c2", "#5fb8a0", "#d49040", "#a06bb5"
+];
 
 let chart;
 let drawdownChart;
 let mcChart;
 let histogramChart;
 let rollingChart;
-let rollingHistChart;
+let calendarChart;
+let withdrawalEvolutionChart;
+let mcVizChart;
+let forwardReturnChart;
 
-let withdrawalChart;
-let survivalChart;
-let fanChart;
-let ruinChart;
-let sequenceChart;
+let resultadoCompleto    = null;
+let mcSupervivenciaData  = null;
+let forwardReturnData    = null;
+
 
 
 function mostrarAcumulacion() {
@@ -232,7 +242,7 @@ function updateAllocationChart() {
 // ==========================
 // CÁLCULO PORTAFOLIO
 // ==========================
-function calcularPortafolio(data, weights, initialValue) {
+function calcularPortafolio(data, weights, initialValue, rebalanceo = "mensual") {
 
     data = data.filter(row => row["Fecha"]);
 
@@ -246,41 +256,66 @@ function calcularPortafolio(data, weights, initialValue) {
 
     let V = initialValue;
 
-    // punto inicial
     fechas.push(data[0]["Fecha"]);
     valores.push(V);
 
-    for (let t = 1; t < data.length; t++) {
+    if (rebalanceo === "mensual") {
 
-        let retornoPortafolio = 0;
+        for (let t = 1; t < data.length; t++) {
 
-        activos.forEach(activo => {
-            let precioHoy = limpiarNumero(data[t][activo]);
-            let precioAyer = limpiarNumero(data[t - 1][activo]);
+            let retornoPortafolio = 0;
 
-            if (isNaN(precioHoy) || isNaN(precioAyer)) return;
+            activos.forEach(activo => {
+                let precioHoy = limpiarNumero(data[t][activo]);
+                let precioAyer = limpiarNumero(data[t - 1][activo]);
+                if (isNaN(precioHoy) || isNaN(precioAyer)) return;
+                retornoPortafolio += weights[activo] * ((precioHoy / precioAyer) - 1);
+            });
 
-            let retorno = (precioHoy / precioAyer) - 1;
+            let precioHoyRF = limpiarNumero(data[t]["Money Market"]);
+            let precioAyerRF = limpiarNumero(data[t - 1]["Money Market"]);
+            let rf = (!isNaN(precioHoyRF) && !isNaN(precioAyerRF)) ? (precioHoyRF / precioAyerRF) - 1 : 0;
+            rfSeries.push(rf);
 
-            retornoPortafolio += weights[activo] * retorno;
-        });
-
-        // 🔹 Rf (Money Market)
-        let precioHoyRF = limpiarNumero(data[t]["Money Market"]);
-        let precioAyerRF = limpiarNumero(data[t - 1]["Money Market"]);
-
-        let rf = 0;
-        if (!isNaN(precioHoyRF) && !isNaN(precioAyerRF)) {
-        rf = (precioHoyRF / precioAyerRF) - 1;
+            V = V * (1 + retornoPortafolio);
+            fechas.push(data[t]["Fecha"]);
+            valores.push(V);
+            retornos.push(retornoPortafolio);
         }
 
-        rfSeries.push(rf);
+    } else {
 
-        V = V * (1 + retornoPortafolio);
+        // Anual y sin rebalanceo: seguimiento de valor por activo
+        let Vi = {};
+        activos.forEach(a => { Vi[a] = weights[a] * initialValue; });
 
-        fechas.push(data[t]["Fecha"]);
-        valores.push(V);
-        retornos.push(retornoPortafolio);
+        for (let t = 1; t < data.length; t++) {
+
+            let Vprev = V;
+
+            activos.forEach(activo => {
+                let precioHoy = limpiarNumero(data[t][activo]);
+                let precioAyer = limpiarNumero(data[t - 1][activo]);
+                if (isNaN(precioHoy) || isNaN(precioAyer)) return;
+                Vi[activo] *= (precioHoy / precioAyer);
+            });
+
+            V = activos.reduce((sum, a) => sum + Vi[a], 0);
+
+            let precioHoyRF = limpiarNumero(data[t]["Money Market"]);
+            let precioAyerRF = limpiarNumero(data[t - 1]["Money Market"]);
+            let rf = (!isNaN(precioHoyRF) && !isNaN(precioAyerRF)) ? (precioHoyRF / precioAyerRF) - 1 : 0;
+            rfSeries.push(rf);
+
+            fechas.push(data[t]["Fecha"]);
+            valores.push(V);
+            retornos.push(V / Vprev - 1);
+
+            // Rebalanceo anual: al cierre del mes 12, 24, 36...
+            if (rebalanceo === "anual" && t % 12 === 0) {
+                activos.forEach(a => { Vi[a] = weights[a] * V; });
+            }
+        }
     }
 
     return { fechas, valores, retornos, rfSeries };
@@ -302,7 +337,7 @@ function calcularEstadisticas(valores, retornos, rfSeries, fechas, initialValue)
 
     const varianza = retornos.reduce((acc, r) => {
         return acc + Math.pow(r - promedio, 2);
-    }, 0) / n;
+    }, 0) / (n - 1);
 
     const volMensual = Math.sqrt(varianza);
     const volAnual = volMensual * Math.sqrt(12);
@@ -346,7 +381,7 @@ valores.forEach((v, i) => {
 
     let varExcess = excess.reduce((acc, r) => {
         return acc + Math.pow(r - avgExcess, 2);
-    }, 0) / n;
+    }, 0) / (n - 1);
 
     let stdExcess = Math.sqrt(varExcess);
     let sharpe = (avgExcess / stdExcess) * Math.sqrt(12);
@@ -447,6 +482,150 @@ function mostrarResumen(stats) {
 }
 
 // ==========================
+// RENDIMIENTOS POR AÑO CALENDARIO
+// ==========================
+function calcularRendimientosAnuales(fRetornos, fFechas) {
+
+    // fFechas[0] = fecha inicial sin retorno
+    // fRetornos[i] corresponde al período que termina en fFechas[i+1]
+    const byYear = {};
+
+    for (let i = 0; i < fRetornos.length; i++) {
+        const fechaStr = fFechas[i + 1];
+        const parts = String(fechaStr).split('/');
+        if (parts.length !== 3) continue;
+        const year = parseInt(parts[2]);
+        if (!byYear[year]) byYear[year] = [];
+        byYear[year].push(fRetornos[i]);
+    }
+
+    const years = Object.keys(byYear).map(Number).sort((a, b) => a - b);
+
+    return years.map(year => {
+        const rets = byYear[year];
+        const rendimiento = rets.reduce((acc, r) => acc * (1 + r), 1) - 1;
+        const completo = rets.length === 12;
+        return { year, rendimiento, completo };
+    });
+}
+
+function graficarCalendario(data) {
+
+    const ctx = document.getElementById("calendarChart");
+    if (calendarChart) calendarChart.destroy();
+
+    const labels = data.map(d => d.completo ? String(d.year) : d.year + "*");
+    const values = data.map(d => parseFloat((d.rendimiento * 100).toFixed(2)));
+
+    calendarChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{
+                data: values,
+                backgroundColor: values.map(v =>
+                    v >= 0 ? 'rgba(110, 194, 250, 0.6)' : 'rgba(166, 27, 27, 0.5)'
+                ),
+                borderColor: values.map(v =>
+                    v >= 0 ? '#456db8' : '#a61b1b'
+                ),
+                borderWidth: 1,
+                borderRadius: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            const raw = ctx.raw;
+                            const item = data[ctx.dataIndex];
+                            const sufijo = item.completo ? '' : ' (año parcial)';
+                            return (raw >= 0 ? '+' : '') + raw.toFixed(2) + '%' + sufijo;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: {
+                        callback: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%',
+                        color: '#666'
+                    },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                },
+                x: {
+                    ticks: { color: '#666' },
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+}
+
+// ==========================
+// FILTRO DE PERÍODO
+// ==========================
+function aplicarPeriodo(periodo) {
+
+    if (!resultadoCompleto) return;
+
+    const { fechas, valores, retornos, rfSeries } = resultadoCompleto;
+    const initialValue = parseFloat(document.getElementById("initialValue").value);
+
+    let fFechas, fValores, fRetornos, fRfSeries;
+
+    if (periodo === "5y") {
+        const n = Math.min(60, retornos.length);
+        fRetornos  = retornos.slice(-n);
+        fRfSeries  = rfSeries.slice(-n);
+        fValores   = valores.slice(-(n + 1));
+        fFechas    = fechas.slice(-(n + 1));
+    } else if (periodo === "10y") {
+        const n = Math.min(120, retornos.length);
+        fRetornos  = retornos.slice(-n);
+        fRfSeries  = rfSeries.slice(-n);
+        fValores   = valores.slice(-(n + 1));
+        fFechas    = fechas.slice(-(n + 1));
+    } else {
+        fFechas   = fechas;
+        fValores  = valores;
+        fRetornos = retornos;
+        fRfSeries = rfSeries;
+    }
+
+    // Normalizar para que el gráfico y los cálculos arranquen desde el aporte inicial
+    const scale = initialValue / fValores[0];
+    const fValoresNorm = fValores.map(v => v * scale);
+
+    graficar(fFechas, fValoresNorm);
+
+    const stats = calcularEstadisticas(
+        fValoresNorm,
+        fRetornos,
+        fRfSeries,
+        fFechas,
+        initialValue
+    );
+
+    mostrarResumen(stats);
+
+    // Rendimientos por año calendario
+    const calData = calcularRendimientosAnuales(fRetornos, fFechas);
+    graficarCalendario(calData);
+
+    // Distribución de retornos
+    const selectorFreq = document.getElementById("histogramFrequency");
+    graficarHistograma(fRetornos, selectorFreq.value);
+
+    // Rolling Returns
+    const rollingData = calcularRollingReturns(fRetornos, fFechas, 12);
+    graficarRolling(rollingData.rolling, rollingData.rollingFechas);
+}
+
+// ==========================
 // RUN
 // ==========================
 function runSimulation() {
@@ -467,24 +646,25 @@ function runSimulation() {
     ? marketDataReal 
     : marketDataNominal;
 
-    const resultado = calcularPortafolio(dataToUse, weights, initialValue);
+    const rebalanceo = document.getElementById("rebalanceo").value;
+    resultadoCompleto = calcularPortafolio(dataToUse, weights, initialValue, rebalanceo);
 
-    graficar(resultado.fechas, resultado.valores);
+    const selectorPeriodo = document.getElementById("periodoChart");
+    const selectorFreq    = document.getElementById("histogramFrequency");
+    const selectorMode    = document.getElementById("histogramMode");
 
-    const stats = calcularEstadisticas(
-    resultado.valores,
-    resultado.retornos,
-    resultado.rfSeries,
-    resultado.fechas,
-    initialValue
-    );
+    const refrescar = () => aplicarPeriodo(selectorPeriodo.value);
 
-    mostrarResumen(stats);
+    selectorPeriodo.onchange = refrescar;
+    selectorFreq.onchange    = refrescar;
+    selectorMode.onchange    = refrescar;
+
+    aplicarPeriodo(selectorPeriodo.value);
 
     // DRAWOWNS
-    const dds = calcularDrawdowns(resultado.valores, resultado.fechas);
+    const dds = calcularDrawdowns(resultadoCompleto.valores, resultadoCompleto.fechas);
 
-    const topDDs = procesarTopDrawdowns(dds, resultado.valores, resultado.fechas);
+    const topDDs = procesarTopDrawdowns(dds, resultadoCompleto.valores, resultadoCompleto.fechas);
 
     if (topDDs.length > 0) {
         graficarDrawdowns(topDDs);
@@ -492,36 +672,13 @@ function runSimulation() {
     }
 
     // MONTE CARLO
-    const mcResultados = correrMonteCarlo(resultado.retornos);
+    const mcResultados = correrMonteCarlo(resultadoCompleto.retornos);
 
     graficarMonteCarlo(mcResultados);
 
     mostrarMonteCarloStats(mcResultados);
 
-    // HISTOGRAMA
-        const selectorFreq = document.getElementById("histogramFrequency");
-    const selectorMode = document.getElementById("histogramMode");
-
-    function actualizarHistograma() {
-        graficarHistograma(resultado.retornos, selectorFreq.value);
-    }
-
-    selectorFreq.onchange = actualizarHistograma;
-    selectorMode.onchange = actualizarHistograma;
-
-    // inicial
-    graficarHistograma(resultado.retornos, selectorFreq.value);
-
-    // ===== ROLLING RETURNS =====
-    const rollingData = calcularRollingReturns(
-        resultado.retornos,
-        resultado.fechas,
-        12
-    );
-
-    graficarRolling(rollingData.rolling, rollingData.rollingFechas);
-    graficarHistogramaRolling(rollingData.rolling);
-
+    graficarComposicion(document.getElementById('composicionSelector').value);
 }
 
 
@@ -529,204 +686,714 @@ function runSimulation() {
 // SIMULACIÓN CON RETIROS
 // ==========================
 
-function simularConRetiros(retornos, initialValue, withdrawal, startYear, horizonYears = 30) {
+// ==========================
+// CÁLCULO PORTAFOLIO CON RETIROS
+// ==========================
+function calcularPortafolioConRetiros(data, weights, initialValue, rebalanceo, withdrawal) {
 
-    const totalMonths = horizonYears * 12;
-    const startMonth = startYear * 12;
+    data = data.filter(row => row["Fecha"]);
+
+    const activos = Object.keys(weights)
+        .filter(a => weights[a] > 0 && data[0][a] !== undefined);
+
+    let fechas         = [data[0]["Fecha"]];
+    let valores        = [initialValue];
+    let retornos       = [];
+    let totalWithdrawn = 0;
 
     let V = initialValue;
-    let valores = [V];
 
-    let ruinMonth = null;
+    if (rebalanceo === "mensual") {
 
-    const camino = generarCaminoEstacionario(retornos, totalMonths, 0.083);
+        for (let t = 1; t < data.length; t++) {
 
-    for (let m = 0; m < totalMonths; m++) {
+            // 1. Retorno de mercado desde precios (pesos fijos)
+            let rt = 0;
+            activos.forEach(a => {
+                let hoy  = limpiarNumero(data[t][a]);
+                let ayer = limpiarNumero(data[t - 1][a]);
+                if (!isNaN(hoy) && !isNaN(ayer) && ayer !== 0)
+                    rt += weights[a] * (hoy / ayer - 1);
+            });
 
-        V = V * (1 + camino[m]);
+            // 2. Valor pre-retiro
+            let Vpre = V * (1 + rt);
 
-        // retiro anual al final de cada año
-        if ((m + 1) % 12 === 0 && m >= startMonth) {
-            V = Math.max(0, V - withdrawal);
+            // 3. Registrar retorno de mercado (antes del retiro)
+            retornos.push(rt);
+
+            // 4. Aplicar retiro al cierre de cada año
+            if (t % 12 === 0) {
+                const retiro = Math.min(Vpre, withdrawal);
+                totalWithdrawn += retiro;
+                V = Vpre - retiro;
+            } else {
+                V = Vpre;
+            }
+
+            fechas.push(data[t]["Fecha"]);
+            valores.push(V);
+
+            if (V <= 0) break;
         }
 
-        if (V <= 0 && ruinMonth === null) {
-            ruinMonth = m;
-            V = 0;
-        }
+    } else {
 
-        valores.push(V);
+        // Rebalanceo anual o sin rebalanceo: rastrear posiciones individuales
+        let Vi = {};
+        activos.forEach(a => { Vi[a] = weights[a] * initialValue; });
+
+        for (let t = 1; t < data.length; t++) {
+
+            // 1. Actualizar posiciones con precios de mercado
+            activos.forEach(a => {
+                let hoy  = limpiarNumero(data[t][a]);
+                let ayer = limpiarNumero(data[t - 1][a]);
+                if (!isNaN(hoy) && !isNaN(ayer) && ayer !== 0)
+                    Vi[a] *= (hoy / ayer);
+            });
+
+            // 2. Valor pre-retiro
+            let Vpre = activos.reduce((sum, a) => sum + Vi[a], 0);
+
+            // 3. Retorno de mercado (antes del retiro)
+            retornos.push(Vpre / V - 1);
+
+            if (t % 12 === 0) {
+
+                // 4. Aplicar retiro
+                const retiro = Math.min(Vpre, withdrawal);
+                totalWithdrawn += retiro;
+                let Vpost = Vpre - retiro;
+
+                if (rebalanceo === "anual") {
+                    activos.forEach(a => { Vi[a] = weights[a] * Vpost; });
+                } else {
+                    const factor = Vpre > 0 ? Vpost / Vpre : 0;
+                    activos.forEach(a => { Vi[a] *= factor; });
+                }
+
+                V = Vpost;
+
+            } else {
+                V = Vpre;
+            }
+
+            fechas.push(data[t]["Fecha"]);
+            valores.push(V);
+
+            if (V <= 0) break;
+        }
     }
 
-    return {
-        valores,
-        ruinMonth,
-        finalValue: V
-    };
+    return { fechas, valores, retornos, totalWithdrawn };
 }
 
 
 // ==========================
-// MONTE CARLO CON RETIROS
+// GRÁFICO EVOLUCIÓN CON RETIROS
 // ==========================
+function graficarEvolucionRetiros(fechasSin, valoresSin, fechasCon, valoresCon) {
 
-function correrSimulacionRetiros(retornos, initialValue, withdrawal, startYear, simulaciones = 2000) {
+    const ctx = document.getElementById("withdrawalEvolutionChart");
+    if (withdrawalEvolutionChart) withdrawalEvolutionChart.destroy();
 
-    let resultados = [];
-    let paths = [];
+    // Alinear serie "con retiros" al mismo eje X que "sin retiros"
+    // Si el portafolio se agotó antes, rellenar con null
+    const conPadded = [...valoresCon];
+    while (conPadded.length < valoresSin.length) conPadded.push(null);
 
-    for (let i = 0; i < simulaciones; i++) {
+    withdrawalEvolutionChart = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: fechasSin,
+            datasets: [
+                {
+                    label: "Sin retiros",
+                    data: valoresSin,
+                    borderColor: "#9ca3af",
+                    borderWidth: 1.5,
+                    tension: 0.1,
+                    pointRadius: 0
+                },
+                {
+                    label: "Con retiros",
+                    data: conPadded,
+                    borderColor: "#456db8",
+                    borderWidth: 2,
+                    tension: 0.1,
+                    pointRadius: 0,
+                    spanGaps: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+                legend: {
+                    labels: { usePointStyle: true, pointStyle: "circle" }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            if (ctx.raw === null) return null;
+                            return ctx.dataset.label + ": $" + Math.round(ctx.raw).toLocaleString();
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: {
+                        callback: v => "$" + Math.round(v).toLocaleString(),
+                        color: "#666"
+                    },
+                    grid: { color: "rgba(0,0,0,0.05)" }
+                },
+                x: {
+                    ticks: {
+                        color: "#666",
+                        maxTicksLimit: 12,
+                        maxRotation: 0
+                    },
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+}
 
-        const sim = simularConRetiros(retornos, initialValue, withdrawal, startYear);
 
-        paths.push(sim.valores);
+// ==========================
+// FORWARD RETURNS CON RETIROS
+// ==========================
+function graficarForwardReturns(windowMeses, metrica = "retornoTotal") {
 
-        resultados.push({
-            ruinYears: sim.ruinMonth !== null ? sim.ruinMonth / 12 : 30,
-            finalValue: sim.finalValue
+    const ctx = document.getElementById("forwardReturnChart");
+    if (forwardReturnChart) forwardReturnChart.destroy();
+
+    const { retornosMercado, fechas, withdrawal, initialValue } = forwardReturnData;
+    const n      = retornosMercado.length;
+    const labels = [];
+    const dataPoints = [];
+
+    for (let t = 0; t < n - windowMeses + 1; t++) {
+
+        let V         = initialValue;
+        let retirados = 0;
+
+        for (let m = 0; m < windowMeses; m++) {
+            V *= (1 + retornosMercado[t + m]);
+            if ((m + 1) % 12 === 0) {
+                const retiro = Math.min(V, withdrawal);
+                retirados += retiro;
+                V = Math.max(0, V - retiro);
+            }
+            if (V <= 0) { V = 0; break; }
+        }
+
+        const punto = metrica === "retornoTotal"
+            ? (V + retirados) / initialValue - 1
+            : V;
+
+        labels.push(fechas[t]);
+        dataPoints.push(punto);
+    }
+
+    const promedio = dataPoints.reduce((s, v) => s + v, 0) / dataPoints.length;
+
+    const fmtY    = metrica === "retornoTotal"
+        ? v => (v * 100).toFixed(0) + "%"
+        : v => "$" + Math.round(v).toLocaleString();
+    const fmtTip  = metrica === "retornoTotal"
+        ? v => (v * 100).toFixed(1) + "%"
+        : v => "$" + Math.round(v).toLocaleString();
+
+    const mainLabel = metrica === "retornoTotal"
+        ? `Retorno ${windowMeses / 12} años`
+        : `Valor final ${windowMeses / 12} años`;
+
+    const datasets = [
+        {
+            label: mainLabel,
+            data: dataPoints,
+            borderColor: "#456db8",
+            borderWidth: 1.5,
+            tension: 0.3,
+            fill: false,
+            pointRadius: 0
+        },
+        {
+            label: "Promedio",
+            data: labels.map(() => promedio),
+            borderColor: "#f59e0b",
+            borderWidth: 1.5,
+            borderDash: [6, 3],
+            tension: 0,
+            fill: false,
+            pointRadius: 0
+        }
+    ];
+
+    if (metrica === "retornoTotal") {
+        datasets.push({
+            label: "_zero",
+            data: labels.map(() => 0),
+            borderColor: "rgba(200, 80, 80, 0.5)",
+            borderWidth: 1,
+            borderDash: [5, 4],
+            tension: 0,
+            fill: false,
+            pointRadius: 0
         });
     }
 
-    return { resultados, paths };
+    forwardReturnChart = new Chart(ctx, {
+        type: "line",
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    labels: {
+                        filter: item => item.text !== "_zero",
+                        usePointStyle: true,
+                        pointStyle: "circle"
+                    }
+                },
+                tooltip: {
+                    filter: item => item.dataset.label !== "_zero",
+                    callbacks: {
+                        label: c => c.dataset.label + ": " + fmtTip(c.raw)
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: { callback: fmtY, color: "#666" },
+                    grid: { color: "rgba(0,0,0,0.05)" }
+                },
+                x: {
+                    ticks: { color: "#666", maxTicksLimit: 10 },
+                    grid: { display: false }
+                }
+            }
+        }
+    });
 }
 
 
 // ==========================
-// SUPERVIVENCIA
+// ESTADÍSTICOS DE RETIROS
 // ==========================
+function calcularStatsRetiros(conRetiros, initialValue) {
 
-function calcularSupervivencia(paths) {
+    const { valores, retornos, totalWithdrawn } = conRetiros;
 
-    const months = paths[0].length;
-    const sims = paths.length;
+    const n      = retornos.length;                    // meses que duró el portafolio
+    const vFinal = valores[valores.length - 1];
 
-    let survival = [];
+    // Retorno total: todo el valor generado (capital restante + lo cobrado)
+    const retornoTotal      = (vFinal + totalWithdrawn) / initialValue - 1;
+    const retornoAnualizado = Math.pow((vFinal + totalWithdrawn) / initialValue, 12 / n) - 1;
 
-    for (let m = 0; m < months; m++) {
+    // Ruina histórica
+    const ruinaIdx  = valores.findIndex(v => v <= 0);
+    const ruinaAnos = ruinaIdx !== -1 ? ruinaIdx / 12 : null;
 
-        let alive = 0;
+    return { vFinal, totalWithdrawn, retornoTotal, retornoAnualizado, ruinaAnos };
+}
 
-        for (let i = 0; i < sims; i++) {
-            if (paths[i][m] > 0) alive++;
+function mostrarStatsRetiros(stats, initialValue, withdrawal) {
+
+    const pct  = x => (x >= 0 ? "+" : "") + (x * 100).toFixed(2) + "%";
+    const usd  = x => "$" + Math.round(x).toLocaleString();
+    const tasaRetiro = withdrawal / initialValue;
+
+    document.getElementById("withdrawalStats").innerHTML = `
+
+        <!-- FILA 1: CAPITAL -->
+        <div style="display:flex; gap:15px; margin-bottom:15px;">
+
+            <div class="stat-box">
+                <h4>Valor final</h4>
+                <p>${usd(stats.vFinal)}</p>
+            </div>
+
+            <div class="stat-box">
+                <h4>Total retirado</h4>
+                <p>${usd(stats.totalWithdrawn)}</p>
+            </div>
+
+            <div class="stat-box">
+                <h4>Tasa de retiro</h4>
+                <p>${(tasaRetiro * 100).toFixed(2)}%</p>
+                <small>del capital inicial</small>
+            </div>
+
+            <div class="stat-box">
+                <h4>Retorno total</h4>
+                <p>${pct(stats.retornoTotal)}</p>
+                <small>(capital + retiros) / V₀</small>
+            </div>
+
+            <div class="stat-box">
+                <h4>Retorno anualizado</h4>
+                <p>${pct(stats.retornoAnualizado)}</p>
+            </div>
+
+            <div class="stat-box">
+                <h4>Tiempo a ruina</h4>
+                <p>${stats.ruinaAnos !== null
+                    ? stats.ruinaAnos.toFixed(1) + " años"
+                    : "No se agota"}</p>
+            </div>
+
+        </div>
+    `;
+}
+
+
+// ==========================
+// MONTE CARLO — SUPERVIVENCIA
+// ==========================
+function correrMCSupervivencia(retornos, initialValue, withdrawal) {
+
+    const simulaciones = 2000;
+    const horizontes   = [5, 10, 15, 20, 25, 30];
+    const mesesMax     = 30 * 12;
+
+    const capitalPorH  = {};
+    const retiradoPorH = {};
+    horizontes.forEach(h => { capitalPorH[h] = []; retiradoPorH[h] = []; });
+
+    for (let i = 0; i < simulaciones; i++) {
+
+        const camino = generarCaminoEstacionario(retornos, mesesMax, 0.083);
+        let V = initialValue;
+        let totalRetirado = 0;
+
+        for (let t = 1; t <= mesesMax; t++) {
+
+            V = Math.max(0, V * (1 + camino[t - 1]));
+
+            if (t % 12 === 0) {
+                const year = t / 12;
+
+                if (V > 0) {
+                    const retiro = Math.min(V, withdrawal);
+                    totalRetirado += retiro;
+                    V = Math.max(0, V - retiro);
+                }
+
+                if (horizontes.includes(year)) {
+                    capitalPorH[year].push(V);
+                    retiradoPorH[year].push(totalRetirado);
+                }
+            }
         }
-
-        survival.push(alive / sims);
     }
 
-    return survival;
+    function _pct(sorted, p) {
+        const idx = Math.min(sorted.length - 1, Math.round((p / 100) * (sorted.length - 1)));
+        return sorted[idx];
+    }
+
+    function _std(arr) {
+        const mean = arr.reduce((s, v) => s + v, 0) / arr.length;
+        return Math.sqrt(arr.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / arr.length);
+    }
+
+    return horizontes.map(h => {
+        const caps = capitalPorH[h];
+        const rets = retiradoPorH[h];
+        const n    = caps.length;
+
+        const prob = caps.filter(v => v > 0).length / n;
+
+        const retornosTotales     = caps.map((c, i) => (c + rets[i]) / initialValue);
+        const retornosAnualizados = retornosTotales.map(r => Math.pow(Math.max(r, 0), 1 / h) - 1);
+
+        const sortedCaps  = [...caps].sort((a, b) => a - b);
+        const sortedTotal = [...retornosTotales].sort((a, b) => a - b);
+        const sortedAnual = [...retornosAnualizados].sort((a, b) => a - b);
+
+        return {
+            years: h,
+            prob,
+
+            capitalP1:      _pct(sortedCaps, 1),
+            capitalMediana: _pct(sortedCaps, 50),
+            capitalP99:     _pct(sortedCaps, 99),
+
+            retornoTotalP1:      _pct(sortedTotal, 1),
+            retornoTotalMediana: _pct(sortedTotal, 50),
+            retornoTotalP99:     _pct(sortedTotal, 99),
+            retornoTotalStd:     _std(retornosTotales),
+
+            retornoAnualP1:      _pct(sortedAnual, 1),
+            retornoAnualMediana: _pct(sortedAnual, 50),
+            retornoAnualP99:     _pct(sortedAnual, 99),
+            retornoAnualStd:     _std(retornosAnualizados),
+        };
+    });
+}
+
+function mostrarSupervivencia(resultados) {
+
+    const pct = x => (x * 100).toFixed(1) + "%";
+
+    let html = `<div style="display:flex; gap:10px; flex-wrap:wrap;">`;
+
+    resultados.forEach(r => {
+        const color = r.prob >= 0.9 ? "#166534"
+                    : r.prob >= 0.7 ? "#854d0e"
+                    : "#991b1b";
+
+        html += `
+            <div class="stat-box">
+                <h4>${r.years} años</h4>
+                <p style="color:${color}; font-weight:600;">${pct(r.prob)}</p>
+            </div>
+        `;
+    });
+
+    html += `</div>`;
+    document.getElementById("survivalStats").innerHTML = html;
 }
 
 
 // ==========================
-// DISTRIBUCIÓN DE RUINA
+// GRÁFICA INTERACTIVA MC
 // ==========================
+function renderMCViz(tipo) {
 
-function calcularDistribucionRuina(resultados) {
+    if (!mcSupervivenciaData) return;
 
-    let tiempos = resultados.map(r => r.ruinYears);
+    const ctx = document.getElementById("mcVizChart");
+    if (mcVizChart) mcVizChart.destroy();
 
-    tiempos.sort((a, b) => a - b);
+    const labels = mcSupervivenciaData.map(d => d.years + " años");
 
-    const n = tiempos.length;
+    const fPct  = v => (v * 100).toFixed(1) + "%";
+    const fMult = v => v.toFixed(2) + "x";
+    const fUsd  = v => "$" + Math.round(v).toLocaleString();
 
-    return {
-        media: tiempos.reduce((a, b) => a + b, 0) / n,
-        p5: tiempos[Math.floor(n * 0.05)],
-        p50: tiempos[Math.floor(n * 0.5)],
-        p95: tiempos[Math.floor(n * 0.95)],
-        tiempos
-    };
+    const scaleX = { ticks: { color: "#666" }, grid: { display: false } };
+    const scaleY = (cb) => ({ ticks: { callback: cb, color: "#666" }, grid: { color: "rgba(0,0,0,0.05)" } });
+
+    const lineDatasets = (p99key, medKey, p1key, fmt) => [
+        {
+            label: "Percentil 99%",
+            data: mcSupervivenciaData.map(d => d[p99key]),
+            borderColor: "#166534",
+            tension: 0.3, pointRadius: 5, fill: false
+        },
+        {
+            label: "Mediana",
+            data: mcSupervivenciaData.map(d => d[medKey]),
+            borderColor: "#456db8",
+            tension: 0.3, pointRadius: 5, borderWidth: 2.5, fill: false
+        },
+        {
+            label: "Percentil 1%",
+            data: mcSupervivenciaData.map(d => d[p1key]),
+            borderColor: "#991b1b",
+            tension: 0.3, pointRadius: 5, fill: false
+        }
+    ];
+
+    const lineOptions = (yCallback) => ({
+        responsive: true,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+            legend: { labels: { usePointStyle: true, pointStyle: "circle" } }
+        },
+        scales: { y: scaleY(yCallback), x: scaleX }
+    });
+
+    const tableHead = (cols) => `
+        <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:5px;">
+        <thead><tr style="background:#f1f5f9;">
+            ${cols.map(([label, color]) =>
+                `<th style="padding:10px 8px; text-align:${label === "Horizonte" ? "left" : "center"}; color:${color}; font-weight:600;">${label}</th>`
+            ).join("")}
+        </tr></thead><tbody>`;
+
+    const tableClose = `</tbody></table>`;
+
+    // ── SUPERVIVENCIA ──
+    if (tipo === "supervivencia") {
+
+        const probas   = mcSupervivenciaData.map(d => d.prob);
+        const bgColors = probas.map(p =>
+            p >= 0.9 ? "rgba(22,101,52,0.75)"
+          : p >= 0.7 ? "rgba(133,77,14,0.75)"
+          :            "rgba(153,27,27,0.75)"
+        );
+
+        mcVizChart = new Chart(ctx, {
+            type: "bar",
+            data: { labels, datasets: [{ label: "Prob. supervivencia", data: probas, backgroundColor: bgColors, borderRadius: 6 }] },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: c => fPct(c.raw) } }
+                },
+                scales: {
+                    y: { min: 0, max: 1, ticks: { callback: v => (v * 100) + "%", color: "#666" }, grid: { color: "rgba(0,0,0,0.05)" } },
+                    x: scaleX
+                }
+            }
+        });
+
+        let html = tableHead([["Horizonte","#555"],["Prob. supervivencia","#555"],["Nivel","#555"]]);
+        mcSupervivenciaData.forEach(d => {
+            const c = d.prob >= 0.9 ? "#166534" : d.prob >= 0.7 ? "#854d0e" : "#991b1b";
+            const n = d.prob >= 0.9 ? "Alta"     : d.prob >= 0.7 ? "Moderada" : "Baja";
+            html += `<tr style="border-bottom:1px solid #f1f5f9;">
+                <td style="padding:9px 8px; font-weight:600;">${d.years} años</td>
+                <td style="padding:9px 8px; text-align:center; color:${c}; font-weight:600;">${fPct(d.prob)}</td>
+                <td style="padding:9px 8px; text-align:center; color:${c};">${n}</td>
+            </tr>`;
+        });
+        document.getElementById("mcVizStats").innerHTML = html + tableClose;
+
+    // ── RETORNO TOTAL ──
+    } else if (tipo === "retornoTotal") {
+
+        mcVizChart = new Chart(ctx, {
+            type: "line",
+            data: { labels, datasets: lineDatasets("retornoTotalP99","retornoTotalMediana","retornoTotalP1", fMult) },
+            options: {
+                ...lineOptions(v => v.toFixed(1) + "x"),
+                plugins: {
+                    ...lineOptions().plugins,
+                    tooltip: { callbacks: { label: c => c.dataset.label + ": " + fMult(c.raw) } }
+                }
+            }
+        });
+
+        let html = tableHead([["Horizonte","#555"],["Percentil 1%","#991b1b"],["Mediana","#456db8"],["Percentil 99%","#166534"],["Desvío est.","#555"]]);
+        mcSupervivenciaData.forEach(d => {
+            html += `<tr style="border-bottom:1px solid #f1f5f9;">
+                <td style="padding:9px 8px; font-weight:600;">${d.years} años</td>
+                <td style="padding:9px 8px; text-align:center; color:#991b1b;">${fMult(d.retornoTotalP1)}</td>
+                <td style="padding:9px 8px; text-align:center; color:#456db8; font-weight:600;">${fMult(d.retornoTotalMediana)}</td>
+                <td style="padding:9px 8px; text-align:center; color:#166534;">${fMult(d.retornoTotalP99)}</td>
+                <td style="padding:9px 8px; text-align:center; color:#555;">${fMult(d.retornoTotalStd)}</td>
+            </tr>`;
+        });
+        document.getElementById("mcVizStats").innerHTML = html + tableClose;
+
+    // ── CAPITAL FINAL ──
+    } else if (tipo === "capitalFinal") {
+
+        mcVizChart = new Chart(ctx, {
+            type: "line",
+            data: { labels, datasets: lineDatasets("capitalP99","capitalMediana","capitalP1", fUsd) },
+            options: {
+                ...lineOptions(v => "$" + Math.round(v).toLocaleString()),
+                plugins: {
+                    ...lineOptions().plugins,
+                    tooltip: { callbacks: { label: c => c.dataset.label + ": " + fUsd(c.raw) } }
+                }
+            }
+        });
+
+        let html = tableHead([["Horizonte","#555"],["Percentil 1%","#991b1b"],["Mediana","#456db8"],["Percentil 99%","#166534"]]);
+        mcSupervivenciaData.forEach(d => {
+            html += `<tr style="border-bottom:1px solid #f1f5f9;">
+                <td style="padding:9px 8px; font-weight:600;">${d.years} años</td>
+                <td style="padding:9px 8px; text-align:center; color:#991b1b;">${fUsd(d.capitalP1)}</td>
+                <td style="padding:9px 8px; text-align:center; color:#456db8; font-weight:600;">${fUsd(d.capitalMediana)}</td>
+                <td style="padding:9px 8px; text-align:center; color:#166534;">${fUsd(d.capitalP99)}</td>
+            </tr>`;
+        });
+        document.getElementById("mcVizStats").innerHTML = html + tableClose;
+
+    // ── RETORNO ANUALIZADO ──
+    } else if (tipo === "retornoAnualizado") {
+
+        mcVizChart = new Chart(ctx, {
+            type: "line",
+            data: { labels, datasets: lineDatasets("retornoAnualP99","retornoAnualMediana","retornoAnualP1", fPct) },
+            options: {
+                ...lineOptions(v => (v * 100).toFixed(1) + "%"),
+                plugins: {
+                    ...lineOptions().plugins,
+                    tooltip: { callbacks: { label: c => c.dataset.label + ": " + fPct(c.raw) } }
+                }
+            }
+        });
+
+        let html = tableHead([["Horizonte","#555"],["Percentil 1%","#991b1b"],["Mediana","#456db8"],["Percentil 99%","#166534"],["Desvío est.","#555"]]);
+        mcSupervivenciaData.forEach(d => {
+            html += `<tr style="border-bottom:1px solid #f1f5f9;">
+                <td style="padding:9px 8px; font-weight:600;">${d.years} años</td>
+                <td style="padding:9px 8px; text-align:center; color:#991b1b;">${fPct(d.retornoAnualP1)}</td>
+                <td style="padding:9px 8px; text-align:center; color:#456db8; font-weight:600;">${fPct(d.retornoAnualMediana)}</td>
+                <td style="padding:9px 8px; text-align:center; color:#166534;">${fPct(d.retornoAnualP99)}</td>
+                <td style="padding:9px 8px; text-align:center; color:#555;">${fPct(d.retornoAnualStd)}</td>
+            </tr>`;
+        });
+        document.getElementById("mcVizStats").innerHTML = html + tableClose;
+    }
 }
 
 
 // ==========================
-// SEQUENCING RISK
+// RUN SIMULACIÓN CON RETIROS
 // ==========================
-
-function analizarSequencing(retornos, initialValue, withdrawal, startYear) {
-
-    const sorted = retornos.slice().sort((a, b) => a - b);
-
-    const worst = simularConRetirosHistoricoOrdenado(sorted, initialValue, withdrawal, startYear);
-    const best = simularConRetirosHistoricoOrdenado(sorted.slice().reverse(), initialValue, withdrawal, startYear);
-
-    return {
-        worst,
-        best
-    };
-}
-
-
 function runWithdrawalSimulation() {
 
     mostrarRetiros();
 
-    if (!marketDataReal || marketDataReal.length === 0) {
+    if (!marketDataNominal || marketDataNominal.length === 0) {
         alert("Datos no cargados");
         return;
     }
 
     const initialValue = parseFloat(document.getElementById("initialValue").value);
-    const withdrawal = parseFloat(document.getElementById("withdrawalAmount").value);
-    const startYear = parseInt(document.getElementById("withdrawalStart").value) || 0;
+    const withdrawal   = parseFloat(document.getElementById("withdrawalAmount").value) || 0;
+    const weights      = getWeights();
+    const returnType   = document.getElementById("returnType").value;
+    const rebalanceo   = document.getElementById("rebalanceo").value;
 
-    const weights = getWeights();
+    // Misma fuente que acumulación: real o nominal según selección del usuario
+    const dataToUse = returnType === "real" ? marketDataReal : marketDataNominal;
 
-    // ===== PORTAFOLIO HISTÓRICO =====
-    const resultado = calcularPortafolio(marketDataReal, weights, initialValue);
+    // Serie sin retiros
+    const sinRetiros = calcularPortafolio(dataToUse, weights, initialValue, rebalanceo);
 
-    const valoresSin = resultado.valores;
+    // Serie con retiros (retornos ya son reales o nominales según dataToUse)
+    const conRetiros = calcularPortafolioConRetiros(dataToUse, weights, initialValue, rebalanceo, withdrawal);
 
-    // ===== PATH BASE =====
-    const base = simularRetirosHistorico(
-    resultado.retornos,
-    resultado.fechas,
-    initialValue,
-    withdrawal,
-    startYear
+    // Gráfico evolución
+    graficarEvolucionRetiros(
+        sinRetiros.fechas, sinRetiros.valores,
+        conRetiros.fechas, conRetiros.valores
     );
 
-    // ===== MONTE CARLO =====
-    const sim = correrSimulacionRetiros(
-        resultado.retornos,
-        initialValue,
-        withdrawal,
-        startYear
-    );
+    // Gráfico forward returns
+    forwardReturnData = { retornosMercado: sinRetiros.retornos, fechas: sinRetiros.fechas, withdrawal, initialValue };
+    document.getElementById("forwardReturnWindow").value = "60";
+    document.getElementById("forwardReturnMetric").value = "retornoTotal";
+    graficarForwardReturns(60, "retornoTotal");
 
-    // ===== GRÁFICO PRINCIPAL =====
-    graficarRetiros(resultado.fechas, base.valores, valoresSin);
+    // Estadísticos históricos
+    const stats = calcularStatsRetiros(conRetiros, initialValue);
+    mostrarStatsRetiros(stats, initialValue, withdrawal);
 
-    // ===== SUPERVIVENCIA =====
-    const survival = calcularSupervivencia(sim.paths);
-    graficarSupervivencia(survival);
+    // Monte Carlo supervivencia
+    mcSupervivenciaData = correrMCSupervivencia(conRetiros.retornos, initialValue, withdrawal);
+    mostrarSupervivencia(mcSupervivenciaData);
+    document.getElementById("mcVizSelect").value = "supervivencia";
+    renderMCViz("supervivencia");
 
-    // ===== FAN CHART =====
-    graficarFanChart(sim.paths);
-
-    // ===== DISTRIBUCIÓN RUINA =====
-    const dist = calcularDistribucionRuina(sim.resultados);
-    graficarRuina(dist);
-
-    // ===== MÉTRICAS =====
-    mostrarStatsRetiros(
-    sim,
-    base,
-    valoresSin,
-    initialValue,
-    withdrawal,
-    resultado.retornos.length
-    );
-
-    // ===== SEQUENCING =====
-    const seq = analizarSequencing(
-        resultado.retornos,
-        initialValue,
-        withdrawal,
-        startYear
-    );
-
-    graficarSequencing(seq);
+    graficarComposicion(document.getElementById('composicionSelector').value);
 }
 
 
@@ -1016,7 +1683,7 @@ function graficarMonteCarlo(resultados) {
             labels,
             datasets: [
                 {
-                    label: "P99",
+                    label: "Percentil 99%",
                     data: p99,
                     borderWidth: 1,
                     borderColor: 'rgba(150,150,150,0.5)',
@@ -1026,7 +1693,7 @@ function graficarMonteCarlo(resultados) {
                     pointRadius: 0
                  },
                  {
-                    label: "P1",
+                    label: "Percentil 1%",
                     data: p1,
                     borderWidth: 1,
                     borderColor: 'rgba(150,150,150,0.5)',
@@ -1103,8 +1770,8 @@ function mostrarMonteCarloStats(resultados) {
             <div class="stat-box">
                 <h4>${r.horizonte} años</h4>
                 <p>Mediana: ${pct(r.mediana)}</p>
-                <p>Percentil 1: ${pct(r.p1)}</p>
-                <p>Percentil 99: ${pct(r.p99)}</p>
+                <p>Percentil 1%: ${pct(r.p1)}</p>
+                <p>Percentil 99%: ${pct(r.p99)}</p>
                 <p>Prob. > 0: ${pct(r.prob)}</p>
             </div>
         `;
@@ -1157,7 +1824,7 @@ function graficarHistograma(retornos, tipo = "mensual") {
     if (modo === "rolling") {
 
         // ===== ROLLING =====
-        for (let i = window; i < retornos.length; i++) {
+        for (let i = window; i <= retornos.length; i++) {
 
             let total = 1;
 
@@ -1176,10 +1843,6 @@ function graficarHistograma(retornos, tipo = "mensual") {
         }
 
     if (data.length === 0) return;
-
-    // ===== VaR 5% =====
-    const sorted = data.slice().sort((a, b) => a - b);
-    const var5 = sorted[Math.floor(sorted.length * 0.05)];
 
     // ===== bins dinámicos =====
 let bins;
@@ -1225,7 +1888,6 @@ let counts = new Array(bins).fill(0);
 
     // posiciones líneas
     const zeroIndex = (0 - min) / step;
-    const varIndex = (var5 - min) / step;
 
     histogramChart = new Chart(ctx, {
         type: "bar",
@@ -1277,7 +1939,7 @@ function calcularRollingReturns(retornos, fechas, window = 12) {
     let rolling = [];
     let rollingFechas = [];
 
-    for (let i = window; i < retornos.length; i++) {
+    for (let i = window; i <= retornos.length; i++) {
 
         let total = 1;
 
@@ -1291,6 +1953,187 @@ function calcularRollingReturns(retornos, fechas, window = 12) {
 
     return { rolling, rollingFechas };
 }
+
+// ==========================
+// COMPOSICIÓN DEL PORTAFOLIO
+// ==========================
+const DIMENSION_KEY_MAP = {
+    sectores: 'sectors',
+    regiones: 'regions',
+    monedas: 'currencies',
+    calificacion_crediticia: 'credit_rating'
+};
+
+function calcularComposicionPortafolio(weights, dimension) {
+
+    if (!window.assetsData) return { labels: [], values: [] };
+
+    const dimensionKey = DIMENSION_KEY_MAP[dimension];
+    const exposicion = {};
+
+    const rfActivos = ["Renta Fija Global IG", "Renta Fija Global HY", "Renta Fija EM"];
+
+    if (dimension === 'calificacion_crediticia') {
+
+        const totalRF = rfActivos.reduce((s, a) => s + (weights[a] || 0), 0);
+
+        if (totalRF === 0) return { labels: [], values: [], sinRF: true };
+
+        rfActivos.forEach(activo => {
+            const pesoRF = (weights[activo] || 0) / totalRF;
+            if (pesoRF === 0) return;
+            const assetData = window.assetsData[activo];
+            if (!assetData || !assetData[dimensionKey]) return;
+            assetData[dimensionKey].forEach(item => {
+                if (!exposicion[item.name]) exposicion[item.name] = 0;
+                exposicion[item.name] += pesoRF * item.weight;
+            });
+        });
+
+        const duracion = rfActivos.reduce((s, a) => {
+            const pesoRF = (weights[a] || 0) / totalRF;
+            const d = window.assetsData[a] ? (window.assetsData[a].duration || 0) : 0;
+            return s + pesoRF * d;
+        }, 0);
+
+        const ytmActivos = rfActivos.filter(a => window.assetsData[a] && window.assetsData[a].ytm !== null && window.assetsData[a].ytm !== undefined);
+        const totalRF_ytm = ytmActivos.reduce((s, a) => s + (weights[a] || 0), 0);
+        let ytmLine = '';
+        if (totalRF_ytm > 0) {
+            const ytm = ytmActivos.reduce((s, a) => {
+                const pesoRF_ytm = (weights[a] || 0) / totalRF_ytm;
+                return s + pesoRF_ytm * window.assetsData[a].ytm;
+            }, 0);
+            ytmLine = `<br>Rendimiento al vencimiento promedio: ${ytm.toFixed(2)}%`;
+        }
+
+        const el = document.getElementById('duracionInfo');
+        el.innerHTML = `Duración promedio de Renta Fija: ${duracion.toFixed(1)} años${ytmLine}`;
+        el.style.display = 'block';
+
+    } else {
+
+        document.getElementById('duracionInfo').style.display = 'none';
+
+        Object.keys(weights).forEach(activo => {
+            if (weights[activo] <= 0) return;
+            const assetData = window.assetsData[activo];
+            if (!assetData || !assetData[dimensionKey]) return;
+            assetData[dimensionKey].forEach(item => {
+                if (!exposicion[item.name]) exposicion[item.name] = 0;
+                exposicion[item.name] += weights[activo] * item.weight;
+            });
+        });
+    }
+
+    const CREDIT_ORDER = [
+        'AAA','AA','A','BBB','BB','B','CCC','CC','C','DDD','DD','D','Sin Calificación'
+    ];
+
+    const entries = Object.entries(exposicion).filter(([, v]) => v > 0);
+
+    if (dimension === 'calificacion_crediticia') {
+        entries.sort((a, b) => {
+            const ia = CREDIT_ORDER.indexOf(a[0]);
+            const ib = CREDIT_ORDER.indexOf(b[0]);
+            const orderA = ia === -1 ? 999 : ia;
+            const orderB = ib === -1 ? 999 : ib;
+            return orderA - orderB;
+        });
+    } else {
+        entries.sort((a, b) => b[1] - a[1]);
+    }
+
+    return {
+        labels: entries.map(e => e[0]),
+        values: entries.map(e => e[1])
+    };
+}
+
+function graficarComposicion(dimension) {
+
+    const weights = getWeights();
+    const result = calcularComposicionPortafolio(weights, dimension);
+
+    if (composicionChartInstance) {
+        composicionChartInstance.destroy();
+        composicionChartInstance = null;
+    }
+
+    const ctx = document.getElementById('composicionChart');
+
+    if (result.sinRF) {
+        document.getElementById('duracionInfo').textContent = 'Sin renta fija en el portafolio';
+        document.getElementById('duracionInfo').style.display = 'block';
+        document.getElementById('composicionLegend').innerHTML = '';
+        return;
+    }
+
+    if (result.labels.length === 0) {
+        document.getElementById('composicionLegend').innerHTML = '';
+        return;
+    }
+
+    const colors = result.labels.map((_, i) => COMPOSICION_COLORS[i % COMPOSICION_COLORS.length]);
+
+    composicionChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: result.labels,
+            datasets: [{
+                data: result.values,
+                backgroundColor: colors,
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '75%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const pct = total > 0 ? (context.raw / total * 100).toFixed(1) : 0;
+                            return `${context.label}: ${pct}%`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Leyenda HTML externa
+    const total = result.values.reduce((a, b) => a + b, 0);
+    const legendEl = document.getElementById('composicionLegend');
+    legendEl.innerHTML = result.labels.map((label, i) => {
+        const pct = total > 0 ? (result.values[i] / total * 100).toFixed(1) : 0;
+        const color = colors[i];
+        return `<div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#444; line-height:1.3;">
+            <span style="width:8px; height:8px; border-radius:50%; background:${color}; flex-shrink:0; display:inline-block;"></span>
+            <span>${label} — ${pct}%</span>
+        </div>`;
+    }).join('');
+}
+
+const DIMENSION_TITLES = {
+    sectores: 'Sectores',
+    regiones: 'Regiones',
+    monedas: 'Monedas',
+    calificacion_crediticia: 'Calificación Crediticia'
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    const sel = document.getElementById('composicionSelector');
+    if (sel) {
+        sel.addEventListener('change', function() {
+            document.getElementById('composicionTitle').textContent = DIMENSION_TITLES[this.value] || this.value;
+            graficarComposicion(this.value);
+        });
+    }
+});
 
 function graficarRolling(rolling, fechas) {
 
@@ -1313,456 +2156,29 @@ function graficarRolling(rolling, fechas) {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    ticks: {
-                        callback: v => (v * 100).toFixed(1) + "%"
-                    }
-                },
-                x: {
-                    display: false
-                }
-            }
-        }
-    });
-}
-
-function graficarHistogramaRolling(rolling) {
-
-    const ctx = document.getElementById("rollingHistChart");
-
-    if (rollingHistChart) rollingHistChart.destroy();
-
-    // bins dinámicos
-    let bins = rolling.length < 50 ? 10 : 20;
-
-    const min = Math.min(...rolling);
-    const max = Math.max(...rolling);
-
-    const step = (max - min) / bins;
-    if (step === 0) return;
-
-    let counts = new Array(bins).fill(0);
-
-    rolling.forEach(r => {
-        let index = Math.floor((r - min) / step);
-        if (index >= bins) index = bins - 1;
-        if (index < 0) index = 0;
-        counts[index]++;
-    });
-
-    const labels = counts.map((_, i) => {
-    const start = min + i * step;
-    const end = start + step;
-
-    return `${(start * 100).toFixed(0)}% a ${(end * 100).toFixed(0)}%`;
-    });
-
-    rollingHistChart = new Chart(ctx, {
-        type: "bar",
-        data: {
-            labels: labels,
-            datasets: [{
-                data: counts,
-                backgroundColor: 'rgba(110, 194, 250, 0.4)',
-                borderColor: '#456db8',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            indexAxis: 'y', // 🔥 esto lo gira
-            responsive: true,
-            maintainAspectRatio: false,
             plugins: {
                 legend: { display: false }
             },
             scales: {
-                x: {
-                     ticks: {
-                    color: '#666'
-                 },
-                    grid: {
-                     color: 'rgba(0,0,0,0.05)'
-                    }
-                },
                 y: {
-                     ticks: {
-                    callback: function(value, index) {
-                    return this.getLabelForValue(value);
+                    ticks: {
+                        callback: v => (v * 100).toFixed(1) + "%",
+                        color: '#666'
                     },
-                    color: '#666'
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                },
+                x: {
+                    ticks: {
+                        color: '#666',
+                        maxTicksLimit: 12,
+                        maxRotation: 0
                     },
-                    grid: {
-                    display: false
-                    }
+                    grid: { display: false }
                 }
             }
         }
     });
 }
 
-function graficarRetiros(fechas, valoresCon, valoresSin) {
 
-    const ctx = document.getElementById("withdrawalChart");
 
-    if (withdrawalChart) withdrawalChart.destroy();
-
-    withdrawalChart = new Chart(ctx, {
-        type: "line",
-        data: {
-            labels: fechas,
-          datasets: [
-        {
-        label: "Con retiros",
-        data: valoresCon,
-        borderWidth: 2,
-        borderColor: "#1f3a8a" // azul oscuro
-        },
-        {
-        label: "Sin retiros",
-        data: valoresSin,
-        borderWidth: 1,
-        borderColor: "gray",
-        borderDash: [5,5]
-        }
-        ]
-        }
-    });
-}
-
-
-function mostrarStatsRetiros(sim, base, valoresSin, initialValue, withdrawal, nMonths) {
-
-    const pct = x => (x * 100).toFixed(2) + "%";
-
-    const horizontes = [5,10,15,20,30];
-
-    // ==========================
-    // 1. TIEMPO MEDIO A RUINA
-    // ==========================
-    // const avgRuin = sim.resultados.reduce((acc, r) => acc + r.ruinYears, 0) / sim.resultados.length;
-
-    // ==========================
-    // 1b. TIEMPO A RUINA HISTÓRICO
-    // ==========================
-
-    let ruinIndexHist = base.valores.findIndex(v => v <= 0);
-
-    let ruinYearsHist = ruinIndexHist !== -1 ? ruinIndexHist / 12 : null;
-
-    // ==========================
-    // 2. RETORNOS
-    // ==========================
-
-    const finalCon = base.valores[base.valores.length - 1];
-    const finalSin = valoresSin[valoresSin.length - 1];
-
-
-    // número de retiros realizados
-    const totalWithdrawals = base.totalWithdrawn;
-
-    // retorno total
-    const totalReturnCon = (finalCon + totalWithdrawals) / initialValue - 1;
-
-console.log("---- DEBUG RETIROS ----");
-console.log("Inicial:", initialValue);
-console.log("Final:", finalCon);
-console.log("Retiros reales:", totalWithdrawals);
-console.log("Check:", (finalCon + totalWithdrawals) / initialValue - 1);
-
-    const totalReturnSin = finalSin / initialValue - 1;
-
-    // retorno anualizado
-// SIN retiros → usa toda la historia
-const yearsSin = nMonths / 12;
-
-// CON retiros → duración efectiva (puede ser menor si hay ruina)
-const yearsCon = (base.valores.length - 1) / 12;
-
-const annCon = Math.pow(1 + totalReturnCon, 1 / yearsCon) - 1;
-const annSin = Math.pow(1 + totalReturnSin, 1 / yearsSin) - 1;
-
-    // ==========================
-    // 3. HTML
-    // ==========================
-
-    let html = `
-
-    <!-- FILA 1: RETORNOS -->
-    <div style="display:flex; gap:15px; margin-bottom:15px;">
-
-        <div class="stat-box">
-            <h4>Retorno Total (con retiros)</h4>
-            <p>${pct(totalReturnCon)}</p>
-        </div>
-
-        <div class="stat-box">
-            <h4>Retorno Total (sin retiros)</h4>
-            <p>${pct(totalReturnSin)}</p>
-        </div>
-
-        <div class="stat-box">
-            <h4>Retorno Anual (con retiros)</h4>
-            <p>${pct(annCon)}</p>
-        </div>
-
-        <div class="stat-box">
-            <h4>Retorno Anual (sin retiros)</h4>
-            <p>${pct(annSin)}</p>
-        </div>
-
-
-        <div class="stat-box">
-            <h4>Tiempo a ruina (histórico)</h4>
-            <p>${ruinYearsHist !== null ? ruinYearsHist.toFixed(1) + " años" : "No se agota"}</p>
-        </div>
-
-    </div>
-
-    <!-- FILA 2: SUPERVIVENCIA -->
-    <h4 style="margin: 10px 0 5px 0;">Probabilidad de supervivencia</h4>
-    <div style="display:flex; gap:15px;">
-    `;
-
-    horizontes.forEach(h => {
-
-        const t = h * 12;
-
-        let alive = sim.paths.filter(p => p[t] > 0).length;
-        let prob = alive / sim.paths.length;
-
-        html += `
-            <div class="stat-box">
-                <h4>${h} años</h4>
-                <p>${pct(prob)}</p>
-            </div>
-        `;
-    });
-
-    html += `</div>`;
-
-    document.getElementById("withdrawalStats").innerHTML = html;
-}
-
-
-function graficarSupervivencia(survival) {
-
-    const ctx = document.getElementById("survivalChart");
-
-    if (survivalChart) survivalChart.destroy();
-
-    const labels = survival.map((_, i) => Math.floor(i / 12));
-
-            survivalChart = new Chart(ctx, {
-            type: "line",
-            data: {
-                labels,
-                datasets: [{
-                    label: "Supervivencia",
-                    data: survival,
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        min: 0,
-                        max: 1,
-                        ticks: {
-                            callback: v => (v * 100).toFixed(0) + "%"
-                        }
-                    },
-                    x: {
-                        ticks: {
-                        callback: function(value, index) {
-                        const label = this.getLabelForValue(value);
-                        return index % 12 === 0 ? label : "";
-                        }
-                        }
-                    }
-                }
-            }
-        });
-}
-
-
-function graficarFanChart(paths) {
-
-    const ctx = document.getElementById("fanChart");
-
-    if (fanChart) fanChart.destroy();
-
-    const months = paths[0].length;
-    const sims = paths.length;
-
-    let p5 = [], p50 = [], p95 = [];
-
-    for (let m = 0; m < months; m++) {
-
-        let vals = paths.map(p => p[m]).sort((a,b)=>a-b);
-
-        p5.push(vals[Math.floor(sims*0.05)]);
-        p50.push(vals[Math.floor(sims*0.5)]);
-        p95.push(vals[Math.floor(sims*0.95)]);
-    }
-
-    const labels = p5.map((_, i) => (i/12).toFixed(1));
-
-    fanChart = new Chart(ctx, {
-        type: "line",
-        data: {
-            labels,
-            datasets: [
-                {
-                    label: "P95",
-                    data: p95,
-                    borderWidth: 1,
-                    borderDash: [5,5]
-                },
-                {
-                    label: "P5",
-                    data: p5,
-                    borderWidth: 1,
-                    fill: '-1'
-                },
-                {
-                    label: "Mediana",
-                    data: p50,
-                    borderWidth: 2
-                }
-            ]
-        }
-    });
-}
-
-
-function graficarRuina(dist) {
-
-    const ctx = document.getElementById("ruinHistogram");
-
-    if (ruinChart) ruinChart.destroy();
-
-    const bins = 20;
-    const max = 30;
-
-    let counts = new Array(bins).fill(0);
-
-    dist.tiempos.forEach(t => {
-        let index = Math.floor((t / max) * bins);
-        if (index >= bins) index = bins - 1;
-        counts[index]++;
-    });
-
-    const labels = counts.map((_, i) => (i * max / bins).toFixed(0));
-
-    ruinChart = new Chart(ctx, {
-        type: "bar",
-        data: {
-            labels,
-            datasets: [{
-                label: "Frecuencia",
-                data: counts
-            }]
-        }
-    });
-}
-
-
-function graficarSequencing(seq) {
-
-    const ctx = document.getElementById("sequenceChart");
-
-    if (sequenceChart) sequenceChart.destroy();
-
-    const labels = seq.worst.valores.map((_, i) => i === 0 ? 0 : (i/12).toFixed(1));
-
-    sequenceChart = new Chart(ctx, {
-        type: "line",
-        data: {
-            labels,
-            datasets: [
-                {
-                    label: "Worst sequence",
-                    data: seq.worst.valores
-                },
-                {
-                    label: "Best sequence",
-                    data: seq.best.valores
-                }
-            ]
-        }
-    });
-}
-
-
-function simularRetirosHistorico(retornos, fechas, initialValue, withdrawal, startYear) {
-
-    let V = initialValue;
-    let valores = [V];
-    let totalWithdrawn = 0; // 🔥 nuevo
-
-    const startMonth = startYear * 12;
-
-    for (let m = 0; m < retornos.length; m++) {
-
-        V = V * (1 + retornos[m]);
-
-        if ((m + 1) % 12 === 0 && m >= startMonth) {
-
-            let retiro = Math.min(V, withdrawal); // 🔥 clave
-            V -= retiro;
-            totalWithdrawn += retiro;
-        }
-
-        valores.push(V);
-
-        // 🔥 cortar simulación cuando llega a 0
-        if (V <= 0) {
-            break;
-        }
-    }
-
-    return {
-        valores,
-        totalWithdrawn // 🔥 nuevo output
-    };
-}
-
-function simularConRetirosHistoricoOrdenado(retornos, initialValue, withdrawal, startYear) {
-
-    let V = initialValue;
-    let valores = [V];
-
-    const startMonth = startYear * 12;
-
-    for (let m = 0; m < retornos.length; m++) {
-
-        const r = retornos[m];
-
-        V = V * (1 + r);
-
-        // retiro anual
-        if ((m + 1) % 12 === 0 && m >= startMonth) {
-            V = Math.max(0, V - withdrawal);
-        }
-
-        // 🔴 RUINA = estado absorbente
-        if (V <= 0) {
-            V = 0;
-            valores.push(V);
-
-            // completar el resto en 0
-            for (let k = m + 1; k < retornos.length; k++) {
-                valores.push(0);
-            }
-
-            break;
-        }
-
-        valores.push(V);
-    }
-
-    return { valores };
-}
