@@ -1,0 +1,979 @@
+{
+  "metadata": {
+    "version": "1.4",
+    "last_updated": "2026-05-30",
+    "currency_base": "USD",
+    "lists": {
+      "asset_class": [
+        "Renta Variable",
+        "Renta Fija",
+        "Activos Reales",
+        "Materias Primas",
+        "Efectivo y Equivalentes",
+        "Alternativo"
+      ],
+      "regions": [
+        "América del Norte",
+        "Estados Unidos",
+        "Europa",
+        "Reino Unido",
+        "Alemania",
+        "Francia",
+        "Japón",
+        "China",
+        "Mercados Emergentes",
+        "Asia Pacífico",
+        "América Latina",
+        "Medio Oriente y África",
+        "Global",
+        "Canadá"
+      ],
+      "sectors": [
+        "Tecnología",
+        "Salud",
+        "Financiero",
+        "Consumo Discrecional",
+        "Consumo Básico",
+        "Energía",
+        "Industrial",
+        "Materiales",
+        "Servicios Públicos",
+        "Comunicaciones",
+        "Inmobiliario",
+        "Servicios"
+      ],
+      "currencies": [
+        "Dólar",
+        "Euro",
+        "Libra Esterlina",
+        "Yen Japonés",
+        "Franco Suizo",
+        "Dólar Australiano",
+        "Dólar Canadiense",
+        "Yuan Chino",
+        "Corona Sueca",
+        "Corona Noruega",
+        "Otra",
+        "Mercados Emergentes"
+      ],
+      "credit_rating": [
+        "AAA",
+        "AA+",
+        "AA",
+        "AA-",
+        "A+",
+        "A",
+        "A-",
+        "BBB+",
+        "BBB",
+        "BBB-",
+        "BB+",
+        "BB",
+        "BB-",
+        "B",
+        "CCC",
+        "CC",
+        "C",
+        "D",
+        "Sin Calificación"
+      ]
+    }
+  },
+  "assets": {
+    "Acciones USA": {
+      "label": "Acciones USA",
+      "fund_name": "State Street SPDR S&P 500 ETF Trust",
+      "ticker": "SPY US",
+      "isin": "US78462F1030",
+      "currency_base": "USD",
+      "provider": "State Street",
+      "benchmark": "S&P 500 Index",
+      "inception_date": "",
+      "asset_class": [
+        {
+          "name": "Renta Variable",
+          "weight": 1
+        }
+      ],
+      "regions": [
+        {
+          "name": "Estados Unidos",
+          "weight": 1
+        }
+      ],
+      "sectors": [
+        {
+          "name": "Tecnología",
+          "weight": 0.37939999999999996
+        },
+        {
+          "name": "Financiero",
+          "weight": 0.11259999999999999
+        },
+        {
+          "name": "Comunicaciones",
+          "weight": 0.1059
+        },
+        {
+          "name": "Consumo Discrecional",
+          "weight": 0.0986
+        },
+        {
+          "name": "Salud",
+          "weight": 0.0839
+        },
+        {
+          "name": "Industrial",
+          "weight": 0.08349999999999999
+        },
+        {
+          "name": "Consumo Básico",
+          "weight": 0.04650000000000001
+        },
+        {
+          "name": "Energía",
+          "weight": 0.0317
+        },
+        {
+          "name": "Servicios Públicos",
+          "weight": 0.0212
+        },
+        {
+          "name": "Materiales",
+          "weight": 0.0184
+        },
+        {
+          "name": "Inmobiliario",
+          "weight": 0.0183
+        }
+      ],
+      "currencies": [
+        {
+          "name": "Dólar",
+          "weight": 1
+        }
+      ],
+      "credit_rating": [],
+      "duration": null,
+      "ytm": null
+    },
+    "Acciones Europa": {
+      "label": "Acciones Europa",
+      "fund_name": "Vanguard FTSE Europe ETF",
+      "ticker": "VGK US",
+      "isin": "",
+      "currency_base": "USD",
+      "provider": "Vanguard",
+      "benchmark": "FTSE Developed Europe All Cap Index",
+      "inception_date": "",
+      "asset_class": [
+        {
+          "name": "Renta Variable",
+          "weight": 1
+        }
+      ],
+      "regions": [
+        {
+          "name": "Europa",
+          "weight": 1
+        }
+      ],
+      "sectors": [
+        {
+          "name": "Tecnología",
+          "weight": 0.0824
+        },
+        {
+          "name": "Salud",
+          "weight": 0.1241
+        },
+        {
+          "name": "Financiero",
+          "weight": 0.23550000000000001
+        },
+        {
+          "name": "Comunicaciones",
+          "weight": 0.0305
+        },
+        {
+          "name": "Consumo Discrecional",
+          "weight": 0.079
+        },
+        {
+          "name": "Industrial",
+          "weight": 0.20579999999999998
+        },
+        {
+          "name": "Consumo Básico",
+          "weight": 0.0751
+        },
+        {
+          "name": "Energía",
+          "weight": 0.0665
+        },
+        {
+          "name": "Servicios Públicos",
+          "weight": 0.0493
+        },
+        {
+          "name": "Materiales",
+          "weight": 0.0363
+        },
+        {
+          "name": "Inmobiliario",
+          "weight": 0.0155
+        }
+      ],
+      "currencies": [
+        {
+          "name": "Euro",
+          "weight": 0.555
+        },
+        {
+          "name": "Libra Esterlina",
+          "weight": 0.23399999999999999
+        },
+        {
+          "name": "Franco Suizo",
+          "weight": 0.14
+        },
+        {
+          "name": "Corona Sueca",
+          "weight": 0.055999999999999994
+        },
+        {
+          "name": "Corona Noruega",
+          "weight": 0.015
+        }
+      ],
+      "credit_rating": [],
+      "duration": null,
+      "ytm": null
+    },
+    "Acciones EM": {
+      "label": "Acciones EM",
+      "fund_name": "iShares MSCI Emerging Markets ETF",
+      "ticker": "EEM US",
+      "isin": "",
+      "currency_base": "USD",
+      "provider": "BlackRock",
+      "benchmark": "MSCI Emerging Markets Index (Net)",
+      "inception_date": "",
+      "asset_class": [
+        {
+          "name": "Renta Variable",
+          "weight": 1
+        }
+      ],
+      "regions": [
+        {
+          "name": "Mercados Emergentes",
+          "weight": 1
+        }
+      ],
+      "sectors": [
+        {
+          "name": "Tecnología",
+          "weight": 0.4275
+        },
+        {
+          "name": "Financiero",
+          "weight": 0.1808
+        },
+        {
+          "name": "Comunicaciones",
+          "weight": 0.0611
+        },
+        {
+          "name": "Consumo Discrecional",
+          "weight": 0.08460000000000001
+        },
+        {
+          "name": "Salud",
+          "weight": 0.024
+        },
+        {
+          "name": "Industrial",
+          "weight": 0.0694
+        },
+        {
+          "name": "Consumo Básico",
+          "weight": 0.028399999999999998
+        },
+        {
+          "name": "Energía",
+          "weight": 0.034
+        },
+        {
+          "name": "Servicios Públicos",
+          "weight": 0.0202
+        },
+        {
+          "name": "Materiales",
+          "weight": 0.059800000000000006
+        },
+        {
+          "name": "Inmobiliario",
+          "weight": 0.0102
+        }
+      ],
+      "currencies": [
+        {
+          "name": "Mercados Emergentes",
+          "weight": 1
+        }
+      ],
+      "credit_rating": [],
+      "duration": null,
+      "ytm": null
+    },
+    "Renta Fija Global IG": {
+      "label": "Renta Fija Global IG",
+      "fund_name": "iShares Core Global Aggregate Bond UCITS ETF",
+      "ticker": "AGGU LN",
+      "isin": "IE00BZ043R46",
+      "currency_base": "USD",
+      "provider": "BlackRock",
+      "benchmark": "Bloomberg Global Aggregate Bond Index",
+      "inception_date": "",
+      "asset_class": [
+        {
+          "name": "Renta Fija",
+          "weight": 1
+        }
+      ],
+      "regions": [
+        {
+          "name": "Estados Unidos",
+          "weight": 0.39549999999999996
+        },
+        {
+          "name": "Japón",
+          "weight": 0.0803
+        },
+        {
+          "name": "Canadá",
+          "weight": 0.037200000000000004
+        },
+        {
+          "name": "Supranacional",
+          "weight": 0.027200000000000002
+        },
+        {
+          "name": "Europa",
+          "weight": 0.2877
+        },
+        {
+          "name": "Mercados Emergentes",
+          "weight": 0.1351
+        },
+        {
+          "name": "Asia Pacífico",
+          "weight": 0.037000000000000005
+        }
+      ],
+      "sectors": [
+        {
+          "name": "Bonos del Tesoro",
+          "weight": 0.5440999999999999
+        },
+        {
+          "name": "Agencias Estatales",
+          "weight": 0.12
+        },
+        {
+          "name": "Sin garantía",
+          "weight": 0.0635
+        },
+        {
+          "name": "Autoridades Locales / Municipales",
+          "weight": 0.031400000000000004
+        },
+        {
+          "name": "Supranacionales",
+          "weight": 0.0274
+        },
+        {
+          "name": "Títulos Respaldados por Hipotecas",
+          "weight": 0.019799999999999998
+        },
+        {
+          "name": "Títulos Garantizados por el Gobierno",
+          "weight": 0.015700000000000002
+        },
+        {
+          "name": "Deuda Soberana",
+          "weight": 0.014199999999999999
+        },
+        {
+          "name": "Tecnología",
+          "weight": 0.02
+        },
+        {
+          "name": "Financiero",
+          "weight": 0.0165
+        },
+        {
+          "name": "Comunicaciones",
+          "weight": 0.0187
+        },
+        {
+          "name": "Industrial",
+          "weight": 0.0161
+        },
+        {
+          "name": "Consumo Básico",
+          "weight": 0.0363
+        },
+        {
+          "name": "Energía",
+          "weight": 0.0199
+        },
+        {
+          "name": "Servicios Públicos",
+          "weight": 0.0291
+        },
+        {
+          "name": "Inmobiliario",
+          "weight": 0.0073
+        }
+      ],
+      "currencies": [
+        {
+          "name": "Dólar",
+          "weight": 1
+        }
+      ],
+      "credit_rating": [
+        {
+          "name": "AAA",
+          "weight": 0.11810000000000001
+        },
+        {
+          "name": "AA",
+          "weight": 0.3788
+        },
+        {
+          "name": "A",
+          "weight": 0.3127
+        },
+        {
+          "name": "BBB",
+          "weight": 0.1429
+        },
+        {
+          "name": "Sin Calificación",
+          "weight": 0.0475
+        }
+      ],
+      "duration": 6.15,
+      "ytm": 3.81
+    },
+    "Renta Fija Global HY": {
+      "label": "Renta Fija Global HY",
+      "fund_name": "iShares iBoxx $ High Yield Corporate Bond ETF",
+      "ticker": "HYG LN",
+      "isin": "US4642885135",
+      "currency_base": "USD",
+      "provider": "BlackRock",
+      "benchmark": "Markit iBoxx USD Liquid High Yield Index",
+      "inception_date": "",
+      "asset_class": [
+        {
+          "name": "Renta Fija",
+          "weight": 1
+        }
+      ],
+      "regions": [
+        {
+          "name": "Estados Unidos",
+          "weight": 0.8765000000000001
+        },
+        {
+          "name": "Canadá",
+          "weight": 0.038
+        },
+        {
+          "name": "Japón",
+          "weight": 0.0121
+        },
+        {
+          "name": "Europa",
+          "weight": 0.0583
+        },
+        {
+          "name": "Asia Pacífico",
+          "weight": 0.0051
+        },
+        {
+          "name": "Mercados Emergentes",
+          "weight": 0.01
+        }
+      ],
+      "sectors": [
+        {
+          "name": "Tecnología",
+          "weight": 0.094
+        },
+        {
+          "name": "Financiero",
+          "weight": 0.1011
+        },
+        {
+          "name": "Comunicaciones",
+          "weight": 0.1648
+        },
+        {
+          "name": "Consumo Discrecional",
+          "weight": 0.1862
+        },
+        {
+          "name": "Industrial",
+          "weight": 0.0647
+        },
+        {
+          "name": "Consumo Básico",
+          "weight": 0.11689999999999999
+        },
+        {
+          "name": "Energía",
+          "weight": 0.1109
+        },
+        {
+          "name": "Servicios Públicos",
+          "weight": 0.063
+        },
+        {
+          "name": "Bienes de capital",
+          "weight": 0.0984
+        }
+      ],
+      "currencies": [
+        {
+          "name": "Dólar",
+          "weight": 1
+        }
+      ],
+      "credit_rating": [
+        {
+          "name": "BBB",
+          "weight": 0.0087
+        },
+        {
+          "name": "BB",
+          "weight": 0.5727
+        },
+        {
+          "name": "B",
+          "weight": 0.3141
+        },
+        {
+          "name": "CCC",
+          "weight": 0.0892
+        },
+        {
+          "name": "CC",
+          "weight": 0.0038
+        },
+        {
+          "name": "Sin Calificación",
+          "weight": 0.0115
+        }
+      ],
+      "duration": 2.96,
+      "ytm": 6.8
+    },
+    "Renta Fija EM": {
+      "label": "Renta Fija EM",
+      "fund_name": "iShares J.P. Morgan $ EM Bond UCITS ETF",
+      "ticker": "JPEA LN (revisar)",
+      "isin": "IE00BYXYYK40",
+      "currency_base": "USD",
+      "provider": "BlackRock",
+      "benchmark": "J.P. Morgan EMBI Global Core Index",
+      "inception_date": "",
+      "asset_class": [
+        {
+          "name": "Renta Fija",
+          "weight": 1
+        }
+      ],
+      "regions": [
+        {
+          "name": "Mercados Emergentes",
+          "weight": 1
+        }
+      ],
+      "sectors": [
+        {
+          "name": "Deuda Soberana",
+          "weight": 0.9
+        },
+        {
+          "name": "Sin garantía",
+          "weight": 0.1
+        }
+      ],
+      "currencies": [
+        {
+          "name": "Dólar",
+          "weight": 1
+        }
+      ],
+      "credit_rating": [
+        {
+          "name": "AA",
+          "weight": 0.014499999999999999
+        },
+        {
+          "name": "A",
+          "weight": 0.1722
+        },
+        {
+          "name": "BBB",
+          "weight": 0.3333
+        },
+        {
+          "name": "BB",
+          "weight": 0.24359999999999998
+        },
+        {
+          "name": "B",
+          "weight": 0.15710000000000002
+        },
+        {
+          "name": "CCC",
+          "weight": 0.0722
+        },
+        {
+          "name": "D",
+          "weight": 0.0032
+        },
+        {
+          "name": "Sin Calificación",
+          "weight": 0.0039000000000000003
+        }
+      ],
+      "duration": 6.64,
+      "ytm": 6.2
+    },
+    "Money Market": {
+      "label": "Money Market",
+      "fund_name": "US Treasury 1 mes",
+      "ticker": "",
+      "isin": "",
+      "currency_base": "USD",
+      "provider": "",
+      "benchmark": "",
+      "inception_date": "",
+      "asset_class": [
+        {
+          "name": "Money Market",
+          "weight": 1
+        }
+      ],
+      "regions": [
+        {
+          "name": "Estados Unidos",
+          "weight": 1
+        }
+      ],
+      "sectors": [
+        {
+          "name": "Deuda Soberana",
+          "weight": 1
+        }
+      ],
+      "currencies": [
+        {
+          "name": "Dólar",
+          "weight": 1
+        }
+      ],
+      "credit_rating": [
+        {
+          "name": "AAA",
+          "weight": 1
+        }
+      ],
+      "duration": null,
+      "ytm": null
+    },
+    "Real Estate": {
+      "label": "Real Estate",
+      "fund_name": "iShares Developed Markets Property Yield UCITS ETF",
+      "ticker": "IDWP LN",
+      "isin": "IE00B1FZS350",
+      "currency_base": "USD",
+      "provider": "BlackRock",
+      "benchmark": "FTSE EPRA Nareit Developed Dividend+ Net Index in USD",
+      "inception_date": "",
+      "asset_class": [
+        {
+          "name": "Real Estate",
+          "weight": 1
+        }
+      ],
+      "regions": [
+        {
+          "name": "Estados Unidos",
+          "weight": 0.74
+        },
+        {
+          "name": "Japón",
+          "weight": 0.07
+        },
+        {
+          "name": "Europa",
+          "weight": 0.12
+        },
+        {
+          "name": "Asia Pacífico",
+          "weight": 0.07
+        }
+      ],
+      "sectors": [
+        {
+          "name": "Inmobiliario",
+          "weight": 1
+        }
+      ],
+      "currencies": [
+        {
+          "name": "Dólar",
+          "weight": 0.74
+        },
+        {
+          "name": "Yen Japonés",
+          "weight": 0.07
+        },
+        {
+          "name": "Euro",
+          "weight": 0.061
+        },
+        {
+          "name": "Dólar Australiano",
+          "weight": 0.038
+        },
+        {
+          "name": "Libra Esterlina",
+          "weight": 0.037000000000000005
+        },
+        {
+          "name": "Dólar Canadiense",
+          "weight": 0.024
+        },
+        {
+          "name": "Franco Suizo",
+          "weight": 0.018000000000000002
+        },
+        {
+          "name": "Corona Sueca",
+          "weight": 0.012
+        }
+      ],
+      "credit_rating": [],
+      "duration": null,
+      "ytm": null
+    },
+    "Infrastructure": {
+      "label": "Infrastructure",
+      "fund_name": "iShares Global Infrastructure ETF",
+      "ticker": "IGF US",
+      "isin": "US4642883726",
+      "currency_base": "USD",
+      "provider": "BlackRock",
+      "benchmark": "S&P Global Infrastructure Index (Net)",
+      "inception_date": "",
+      "asset_class": [
+        {
+          "name": "Activos Reales",
+          "weight": 1
+        }
+      ],
+      "regions": [
+        {
+          "name": "Estados Unidos",
+          "weight": 0.3833
+        },
+        {
+          "name": "Canadá",
+          "weight": 0.085
+        },
+        {
+          "name": "Asia Pacífico",
+          "weight": 0.1452
+        },
+        {
+          "name": "Europa",
+          "weight": 0.264
+        },
+        {
+          "name": "Japón",
+          "weight": 0.0106
+        },
+        {
+          "name": "Mercados Emergentes",
+          "weight": 0.1119
+        }
+      ],
+      "sectors": [
+        {
+          "name": "Energía",
+          "weight": 0.2
+        },
+        {
+          "name": "Industrial",
+          "weight": 0.4
+        },
+        {
+          "name": "Servicios",
+          "weight": 0.4
+        }
+      ],
+      "currencies": [
+        {
+          "name": "Dólar",
+          "weight": 0.45
+        },
+        {
+          "name": "Dólar Canadiense",
+          "weight": 0.084
+        },
+        {
+          "name": "Euro",
+          "weight": 0.22
+        },
+        {
+          "name": "Dólar Australiano",
+          "weight": 0.098
+        },
+        {
+          "name": "Franco Suizo",
+          "weight": 0.0217
+        },
+        {
+          "name": "Libra Esterlina",
+          "weight": 0.034
+        },
+        {
+          "name": "Yen Japonés",
+          "weight": 0.0106
+        },
+        {
+          "name": "Mercados Emergentes",
+          "weight": 0.0817
+        }
+      ],
+      "credit_rating": [],
+      "duration": null,
+      "ytm": null
+    },
+    "Oro": {
+      "label": "Oro",
+      "fund_name": "SPDR Gold Trust",
+      "ticker": "GLD US",
+      "isin": "",
+      "currency_base": "USD",
+      "provider": "State Street",
+      "benchmark": "Oro",
+      "inception_date": "",
+      "asset_class": [
+        {
+          "name": "Oro",
+          "weight": 1
+        }
+      ],
+      "regions": [
+        {
+          "name": "Estados Unidos",
+          "weight": 1
+        }
+      ],
+      "sectors": [
+        {
+          "name": "Oro",
+          "weight": 1
+        }
+      ],
+      "currencies": [
+        {
+          "name": "Oro",
+          "weight": 1
+        }
+      ],
+      "credit_rating": [],
+      "duration": null,
+      "ytm": null
+    },
+    "Commodities": {
+      "label": "Commodities",
+      "fund_name": "State Stree® SPDR S&P Global Natural Resources ETF",
+      "ticker": "GNR US",
+      "isin": "US78463X5418",
+      "currency_base": "USD",
+      "provider": "State Street",
+      "benchmark": "S&P Global Natural Resources Index",
+      "inception_date": "",
+      "asset_class": [
+        {
+          "name": "Commodities",
+          "weight": 1
+        }
+      ],
+      "regions": [
+        {
+          "name": "Estados Unidos",
+          "weight": 0.35100000000000003
+        },
+        {
+          "name": "Canadá",
+          "weight": 0.195
+        },
+        {
+          "name": "Asia Pacífico",
+          "weight": 0.09910000000000001
+        },
+        {
+          "name": "Europa",
+          "weight": 0.27
+        },
+        {
+          "name": "Japón",
+          "weight": 0.0849
+        },
+        {
+          "name": "Mercados Emergentes",
+          "weight": 0
+        }
+      ],
+      "sectors": [
+        {
+          "name": "Materiales",
+          "weight": 0.5893999999999999
+        },
+        {
+          "name": "Energía",
+          "weight": 0.3556
+        },
+        {
+          "name": "Consumo Básico",
+          "weight": 0.0466
+        },
+        {
+          "name": "Inmobiliario",
+          "weight": 0.0084
+        }
+      ],
+      "currencies": [
+        {
+          "name": "Dólar",
+          "weight": 1
+        }
+      ],
+      "credit_rating": [],
+      "duration": null,
+      "ytm": null
+    }
+  }
+}
