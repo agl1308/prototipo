@@ -202,6 +202,35 @@
       font-size: 12px;
     }
 
+    .nav-btn {
+      padding: 8px 18px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: white;
+      font-size: 13px;
+      cursor: pointer;
+      color: #374151;
+      font-family: 'Inter', sans-serif;
+      transition: background 0.15s;
+    }
+    .nav-btn.active {
+      background: #456db8;
+      color: white;
+      border-color: #456db8;
+    }
+    .nav-btn:hover:not(.active) {
+      background: #f3f4f6;
+    }
+    .goals-row input, .goals-row select {
+      padding: 6px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+      width: 100%;
+      box-sizing: border-box;
+      font-family: 'Inter', sans-serif;
+    }
+
   </style>
 
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
@@ -238,7 +267,15 @@
 
     <div class="input-group">
       <label>Tipo de retorno</label>
-      <select id="returnType" class="sidebar-select" style="width:100%;">
+      <select id="returnType" class="sidebar-select" style="width:100%;"
+              onchange="(function(){
+                var cache=_activeFrontierCache();
+                var av=document.getElementById('accumulationView');
+                if(av&&av.style.display!=='none'){
+                  if(cache){renderEfficientFrontier(cache);}
+                  else{mostrarFrontierSpinner(true);}
+                }
+              })()">
         <option value="nominal" selected>Nominal</option>
         <option value="real">Real (ajustado por inflación)</option>
       </select>
@@ -271,7 +308,7 @@
         width:100%;
         margin-top:10px;
         padding:8px;
-        background:#a65ad1;
+        background:#4b5563;
         color:white;
         border:none;
         border-radius:6px;
@@ -279,9 +316,40 @@
         Calcular Portafolio con retiros
       </button>
 
+      <button onclick="showView('goals')" style="
+        width:100%;
+        margin-top:8px;
+        padding:8px;
+        background:#374151;
+        color:white;
+        border:none;
+        border-radius:6px;
+        cursor:pointer;
+      ">
+        Portafolio con Objetivos
+      </button>
+
+      <hr style="margin:18px 0 12px 0; border:none; border-top:1px solid #eee;">
+
+      <button onclick="showView('glossary')" style="
+        width:100%;
+        margin-top:4px;
+        padding:8px;
+        background:#e2e8f0;
+        color:#475569;
+        border:none;
+        border-radius:6px;
+        cursor:pointer;
+        font-size:12px;
+        letter-spacing:0.3px;
+      ">
+        Glosario y metodología
+      </button>
+
   </div>
 
   <div class="main">
+
 
     <div class="card">
       <div style="display:flex; gap:30px;">
@@ -394,6 +462,42 @@
       <div id="mcStats"></div>
     </div>
 
+    <!-- ========================= -->
+    <!-- FRONTERA EFICIENTE -->
+    <!-- ========================= -->
+    <div class="card">
+      <h3>Rendimiento vs. Volatilidad</h3>
+      <p style="color:#888; font-size:14px; margin-top:-8px; margin-bottom:16px;">
+        Universo de activos y frontera eficiente de Markowitz
+      </p>
+
+      <!-- Spinner -->
+      <div id="frontierLoadingState" style="height:480px; display:flex; align-items:center; justify-content:center; color:#888; font-size:14px;">
+        Calculando frontera eficiente&hellip;
+      </div>
+
+      <!-- Chart container (hidden until ready) -->
+      <div id="frontierChartContainer" style="height:480px; position:relative; display:none;">
+        <canvas id="efficientFrontierChart"></canvas>
+        <div id="frontierTooltip" style="
+          display:none;
+          position:absolute;
+          background:white;
+          border:1px solid rgba(0,0,0,0.1);
+          border-radius:8px;
+          padding:10px 14px;
+          font-size:13px;
+          max-width:230px;
+          min-width:160px;
+          box-shadow:0 4px 16px rgba(0,0,0,0.12);
+          pointer-events:none;
+          z-index:10;
+        "></div>
+      </div>
+
+      <!-- Legend -->
+      <div id="frontierLegend" style="display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:14px;"></div>
+    </div>
 
   </div> <!-- FIN accumulationView -->
 
@@ -452,11 +556,498 @@
 
   </div>
 
-</div>
+  <!-- ========================= -->
+  <!-- VISTA OBJETIVOS (Goal-Based Investing) -->
+  <!-- ========================= -->
+  <div id="goalsView" style="display:none;">
+
+    <!-- ── Inputs ──────────────────────────────────────────────────────────── -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;">
+        <h3 style="margin:0;">Goal-Based Investing</h3>
+        <span id="gbi-return-badge" style="font-size:12px;color:#6b7280;
+          background:#f3f4f6;padding:3px 10px;border-radius:12px;">Retornos nominales</span>
+      </div>
+
+      <!-- W0 display -->
+      <div style="font-size:13px;color:#555;margin-bottom:16px;padding:10px;
+                  background:#f8fafc;border-radius:6px;display:flex;align-items:center;gap:8px;">
+        <span>Patrimonio inicial:</span>
+        <strong id="gbi-w0-display">—</strong>
+        <span style="font-size:11px;color:#9ca3af;">(panel izquierdo → Aporte inicial)</span>
+      </div>
+
+      <!-- Goals table header -->
+      <div style="display:grid;grid-template-columns:1fr 140px 110px 140px 36px;
+                  gap:8px;margin-bottom:4px;padding:0 2px;">
+        <span style="font-size:11px;color:#9ca3af;font-weight:600;">Objetivo</span>
+        <span style="font-size:11px;color:#9ca3af;font-weight:600;">Monto (USD)</span>
+        <span style="font-size:11px;color:#9ca3af;font-weight:600;">Plazo (años)</span>
+        <span style="font-size:11px;color:#9ca3af;font-weight:600;">Tolerancia riesgo</span>
+        <span></span>
+      </div>
+      <div id="gbi-goals-container"></div>
+
+      <button onclick="gbiAgregarObjetivo()"
+        style="margin-top:10px;padding:6px 14px;background:#f3f4f6;
+               border:1px solid #d1d5db;border-radius:6px;font-size:13px;
+               cursor:pointer;color:#374151;">
+        + Agregar objetivo
+      </button>
+
+      <!-- Sigma* slider -->
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid #f1f5f9;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <label style="font-size:13px;color:#374151;font-weight:600;white-space:nowrap;">
+            Volatilidad Growth Portfolio (σ*):
+          </label>
+          <input type="range" id="gbi-sigma-slider" min="3" max="30" value="10" step="0.5"
+            style="flex:1;min-width:120px;"
+            oninput="document.getElementById('gbi-sigma-display').textContent=this.value+'%'">
+          <span id="gbi-sigma-display"
+            style="font-size:13px;font-weight:600;color:#456db8;min-width:40px;">10%</span>
+          <span id="gbi-sigma-hint" style="font-size:11px;color:#9ca3af;"></span>
+        </div>
+      </div>
+
+      <!-- Optimize button -->
+      <button id="gbi-optimize-btn" onclick="gbiRunOptimization()"
+        style="width:100%;margin-top:16px;padding:10px;background:#166534;
+               color:white;border:none;border-radius:6px;font-size:14px;
+               cursor:pointer;font-weight:600;font-family:'Inter',sans-serif;">
+        Optimizar
+      </button>
+
+      <!-- Progress -->
+      <div id="gbi-progress" style="display:none;flex-direction:column;
+                                     align-items:stretch;margin-top:14px;gap:6px;">
+        <div style="font-size:13px;color:#555;text-align:center;" id="gbi-progress-label">
+          Iniciando...
+        </div>
+        <div style="background:#e5e7eb;border-radius:4px;height:8px;overflow:hidden;">
+          <div id="gbi-progress-bar"
+               style="width:0%;background:#166534;height:8px;transition:width 0.3s;"></div>
+        </div>
+        <div style="font-size:11px;color:#9ca3af;text-align:center;">
+          Bootstrap histórico · 1 000 escenarios de optimización · 5 000 de evaluación
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div id="gbi-error" style="display:none;margin-top:12px;padding:12px 14px;
+        background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;
+        font-size:13px;color:#991b1b;"></div>
+    </div>
+
+    <!-- ── Results ─────────────────────────────────────────────────────────── -->
+    <div id="gbi-results" style="display:none;">
+
+      <!-- Capital summary -->
+      <div class="card" id="gbi-capital-card">
+        <h3 style="margin-bottom:12px;">Asignación de capital</h3>
+        <div id="gbi-capital-summary" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+        <!-- sigma warning -->
+        <div id="gbi-sigma-warning" style="display:none;margin-top:10px;padding:8px 12px;
+          background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;
+          font-size:12px;color:#92400e;"></div>
+      </div>
+
+      <!-- Goal Portfolio cards -->
+      <div class="card">
+        <h3 style="margin-bottom:16px;">Goal Portfolios</h3>
+        <div id="gbi-goal-cards" style="display:flex;flex-direction:column;gap:16px;"></div>
+      </div>
+
+      <!-- Growth Portfolio card -->
+      <div class="card" id="gbi-growth-card" style="display:none;">
+        <h3 style="margin-bottom:16px;">Growth Portfolio</h3>
+        <div id="gbi-growth-content"></div>
+      </div>
+
+      <!-- Consolidated Portfolio -->
+      <div class="card">
+        <h3 style="margin-bottom:4px;">Portafolio Consolidado</h3>
+        <p style="font-size:13px;color:#888;margin:0 0 16px;">
+          Los sliders del panel izquierdo han sido actualizados con este portafolio.
+        </p>
+        <div id="gbi-consolidated-content"></div>
+      </div>
+
+      <!-- Historical simulations chart -->
+      <div class="card">
+        <h3 style="margin:0 0 16px;">Simulaciones históricas — ventanas móviles de 10 años</h3>
+        <div style="height:380px;">
+          <canvas id="gbi-historical-chart"></canvas>
+        </div>
+        <div id="gbi-historical-summary" style="margin-top:16px;"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- GLOSARIO Y METODOLOGÍA                                            -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <div id="glossaryView" style="display:none; padding:0 0 60px 0;">
+
+    <style>
+      .gl-card   { background:#fff; border-radius:10px; padding:28px 32px; margin-bottom:20px; box-shadow:0 1px 4px rgba(0,0,0,.08); }
+      .gl-sectitle { font-size:20px; font-weight:700; color:#1d4ed8; border-bottom:2px solid #1d4ed8; padding-bottom:8px; margin:0 0 24px 0; }
+      .gl-sub    { font-size:14px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.6px; margin:28px 0 14px 0; border-left:3px solid #1d4ed8; padding-left:10px; }
+      .gl-item   { margin-bottom:22px; padding-bottom:22px; border-bottom:1px solid #f1f5f9; }
+      .gl-item:last-child { border-bottom:none; margin-bottom:0; padding-bottom:0; }
+      .gl-term   { font-size:15px; font-weight:700; color:#111827; margin-bottom:5px; }
+      .gl-def    { font-size:13.5px; color:#374151; line-height:1.65; margin-bottom:8px; }
+      .gl-formula { background:#f1f5f9; border-left:3px solid #93c5fd; border-radius:0 6px 6px 0; padding:10px 14px; font-size:13px; font-family:monospace; color:#1e3a5f; margin:8px 0 8px 0; line-height:1.8; }
+      .gl-note   { font-size:12.5px; color:#6b7280; font-style:italic; line-height:1.6; margin-top:6px; }
+      .gl-badge  { display:inline-block; background:#eff6ff; color:#1d4ed8; font-size:11px; font-weight:600; border-radius:4px; padding:2px 8px; margin-right:6px; }
+    </style>
+
+    <!-- ─────────────────────────────────── SECCIÓN 1: ACUMULACIÓN ─── -->
+    <div class="gl-card">
+      <p class="gl-sectitle">Vista de Acumulación</p>
+
+      <div class="gl-sub">Estadísticos del portafolio</div>
+
+      <div class="gl-item">
+        <p class="gl-term">Valor final</p>
+        <p class="gl-def">Capital total acumulado al cierre del último período disponible en los datos. Refleja el crecimiento compuesto del capital inicial bajo los pesos, tipo de retorno y política de rebalanceo seleccionados.</p>
+        <div class="gl-formula">V<sub>n</sub> = V<sub>0</sub> × ∏(1 + r<sub>t</sub>)&nbsp;&nbsp;para t = 1, …, n</div>
+        <p class="gl-note">donde r<sub>t</sub> es el retorno mensual del portafolio en el mes t.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Retorno total</p>
+        <p class="gl-def">Rendimiento acumulado durante todo el período analizado, expresado como fracción del capital inicial. No está anualizado, por lo que no es directamente comparable entre portafolios con horizontes de distinta duración.</p>
+        <div class="gl-formula">R<sub>total</sub> = (V<sub>n</sub> / V<sub>0</sub>) − 1</div>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">CAGR — Retorno Anualizado</p>
+        <p class="gl-def">Compound Annual Growth Rate. Tasa uniforme de crecimiento anual que, compuesta durante n meses, reproduce exactamente el valor final observado. Es el estándar para comparar portafolios con distintos horizontes temporales, ya que elimina el efecto de la duración del análisis.</p>
+        <div class="gl-formula">CAGR = (V<sub>n</sub> / V<sub>0</sub>)<sup>12/n</sup> − 1</div>
+        <p class="gl-note">Un CAGR alto puede coexistir con alta volatilidad. Por sí solo no informa sobre el riesgo del camino recorrido.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Volatilidad anualizada</p>
+        <p class="gl-def">Desviación estándar de los retornos mensuales, anualizada bajo el supuesto de independencia entre períodos. Cuantifica la dispersión histórica de los retornos del portafolio y se utiliza como medida estándar de riesgo.</p>
+        <div class="gl-formula">
+          r̄ = (1/n) × Σ r<sub>t</sub><br>
+          σ<sub>mensual</sub> = √[ Σ(r<sub>t</sub> − r̄)² / (n−1) ]<br>
+          σ<sub>anual</sub> = σ<sub>mensual</sub> × √12
+        </div>
+        <p class="gl-note">El divisor (n−1) es la corrección de Bessel, que produce un estimador insesgado de la varianza poblacional. La anualización por √12 es válida bajo el supuesto de retornos i.i.d. mensuales.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Sharpe Ratio</p>
+        <p class="gl-def">Mide el exceso de retorno medio obtenido por unidad de riesgo asumido. Permite comparar portafolios con distintas exposiciones al mercado sobre una base ajustada por riesgo. El Money Market actúa como proxy de la tasa libre de riesgo.</p>
+        <div class="gl-formula">
+          e<sub>t</sub> = r<sub>t</sub> − rf<sub>t</sub>&nbsp;&nbsp;(exceso de retorno mensual)<br>
+          ē = (1/n) × Σ e<sub>t</sub><br>
+          σ<sub>e</sub> = √[ Σ(e<sub>t</sub> − ē)² / (n−1) ]<br>
+          Sharpe = (ē / σ<sub>e</sub>) × √12
+        </div>
+        <p class="gl-note">rf<sub>t</sub> es el retorno mensual del Money Market en el mes t. El ratio se anualiza multiplicando por √12. Un Sharpe mayor a 1 se considera satisfactorio; mayor a 2, muy bueno. Valores negativos indican que el portafolio no compensó el riesgo asumido respecto a la tasa libre de riesgo.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Máximo Drawdown (MDD)</p>
+        <p class="gl-def">Caída máxima desde cualquier pico hasta el valle subsiguiente durante el período analizado. Representa la peor pérdida acumulada que habría sufrido un inversor que compró en el peor momento y vendió en el punto más bajo.</p>
+        <div class="gl-formula">
+          Peak<sub>t</sub> = max(V<sub>0</sub>, V<sub>1</sub>, …, V<sub>t</sub>)<br>
+          DD<sub>t</sub> = (V<sub>t</sub> / Peak<sub>t</sub>) − 1 &nbsp;≤ 0<br>
+          MDD = min(DD<sub>t</sub>)&nbsp;&nbsp;para t = 1, …, n
+        </div>
+        <p class="gl-note">El MDD no informa sobre la duración ni la velocidad de recuperación del episodio. Estos detalles se reportan en el panel de análisis de drawdowns.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Meses positivos / negativos</p>
+        <p class="gl-def">Conteo de meses en los que el portafolio registró retorno estrictamente positivo o negativo. La proporción de meses positivos, junto con la magnitud promedio de cada grupo, permite evaluar la asimetría del perfil de retornos: un portafolio puede tener pocas pérdidas pero de gran magnitud, o muchas ganancias pequeñas que acumulan valor consistentemente.</p>
+      </div>
+
+      <div class="gl-sub">Gráficas</div>
+
+      <div class="gl-item">
+        <p class="gl-term">Composición del portafolio</p>
+        <p class="gl-def">Los gráficos muestran la estructura del portafolio desde distintos niveles de agregación. El izquierdo agrupa los activos en grandes clases (Renta Variable, Renta Fija, activos alternativos) según los pesos definidos por el usuario en los sliders. El derecho desagrega la composición interna del portafolio por región geográfica, moneda, sector o calificación crediticia de la renta fija, ponderando por el peso de cada fondo subyacente en el portafolio.</p>
+        <p class="gl-note">Los pesos muestran la composición objetivo del portafolio, no la composición de mercado real en cada momento. En modos de rebalanceo anual o sin rebalanceo, los pesos efectivos pueden diferir de estos valores entre eventos de rebalanceo.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Evolución del portafolio</p>
+        <p class="gl-def">Serie temporal del valor del portafolio desde el primer hasta el último dato disponible, partiendo siempre del capital inicial introducido por el usuario. Se puede filtrar a los últimos 5 años, últimos 10 años o toda la muestra.</p>
+        <div class="gl-formula">
+          V<sub>t</sub> = V<sub>t−1</sub> × (1 + r<sub>t</sub>)<br>
+          r<sub>t</sub> = Σ<sub>i</sub> w<sub>i</sub> × (p<sub>i,t</sub> / p<sub>i,t−1</sub> − 1)
+        </div>
+        <p class="gl-note">w<sub>i</sub> son los pesos del portafolio y p<sub>i,t</sub> el precio del activo i en el mes t. En modo rebalanceo mensual los pesos son fijos en cada período. En modo anual, los pesos derivan con el mercado durante 12 meses y se restauran al cierre de cada año. En modo sin rebalanceo, los pesos divergen indefinidamente con el comportamiento del mercado.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Distribución de retornos (histograma)</p>
+        <p class="gl-def">Frecuencia empírica de los retornos del portafolio, calculable a distintas frecuencias: mensual, semestral o anual. Permite visualizar la forma de la distribución: dispersión, asimetría y la presencia o ausencia de colas gruesas.</p>
+        <div class="gl-formula">
+          Modo discreto: R<sub>j</sub> = ∏(1 + r<sub>t</sub>) − 1&nbsp;&nbsp;(ventanas no solapadas de k meses)<br>
+          Modo rolling: R<sub>t</sub> = ∏(1 + r<sub>s</sub>) − 1&nbsp;&nbsp;para s = t−11, …, t
+        </div>
+        <p class="gl-note">En modo discreto, cada barra agrega meses consecutivos sin solapamiento (por ejemplo, enero–junio, julio–diciembre, etc.). En modo rolling, cada punto usa los últimos 12 meses desde esa fecha, generando solapamiento entre observaciones. La línea vertical punteada marca el retorno cero.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Retornos rolling 12 meses</p>
+        <p class="gl-def">Para cada mes t, muestra el retorno acumulado de los 12 meses anteriores. Permite ver la evolución del rendimiento a un año a lo largo de toda la historia disponible, capturando cómo distintos regímenes de mercado (crisis, recuperaciones, períodos alcistas) afectaron el portafolio en ventanas de un año.</p>
+        <div class="gl-formula">R<sub>rolling,t</sub> = ∏(1 + r<sub>s</sub>) − 1&nbsp;&nbsp;para s = t−11, …, t</div>
+        <p class="gl-note">Al ser ventanas deslizantes, las observaciones están serialmente correlacionadas (comparten 11 de cada 12 meses con su vecina), lo que es una característica inherente al indicador y no un defecto estadístico.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Análisis de drawdowns</p>
+        <p class="gl-def">Identificación y visualización de los 3 episodios de caída más severos del período, ordenados por profundidad. Cada episodio se muestra normalizado a 100 en su pico, permitiendo comparar la magnitud y la duración de cada caída y recuperación en una escala común.</p>
+        <div class="gl-formula">
+          Peak<sub>t</sub> = max(V<sub>0</sub>, …, V<sub>t</sub>)<br>
+          DD<sub>t</sub> = V<sub>t</sub> / Peak<sub>t</sub> − 1<br>
+          Profundidad del episodio k = min(DD<sub>t</sub>)&nbsp;&nbsp;durante el episodio k
+        </div>
+        <p class="gl-def">Cada tarjeta reporta: profundidad (caída máxima), fecha del pico previo, fecha del valle y fecha de recuperación (primer mes que supera el pico). La duración total incluye tanto la caída como la recuperación.</p>
+        <p class="gl-note">Un drawdown "sin recuperación" indica que el portafolio no volvió a superar ese pico antes del fin de la muestra disponible.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Simulación Monte Carlo — Acumulación</p>
+        <p class="gl-def">Proyección del rendimiento futuro del portafolio a horizontes de 1, 3, 5, 7, 10 y 15 años, mediante 3.000 trayectorias simuladas. El método de generación es el block bootstrap estacionario (Politis &amp; Romano, 1994), que preserva la autocorrelación mensual y las correlaciones entre activos de los datos históricos.</p>
+        <p class="gl-def">En cada trayectoria, se selecciona un mes de inicio aleatorio en la historia y se avanza mes a mes por la serie de retornos reales del portafolio. Con probabilidad p = 0,083 (longitud media de bloque ≈ 12 meses), se interrumpe el bloque y se salta a un nuevo punto aleatorio en la historia; de lo contrario, se continúa al mes siguiente. Este mecanismo evita que los escenarios sean meras repeticiones de períodos históricos contiguos, generando una variedad realista de condiciones de mercado.</p>
+        <div class="gl-formula">
+          CAGR<sub>sim</sub> = (∏(1 + r<sub>t</sub>))<sup>12/h</sup> − 1&nbsp;&nbsp;para cada trayectoria<br>
+          donde h = horizonte en meses y r<sub>t</sub> son retornos del portafolio real remuestreados
+        </div>
+        <p class="gl-note">La tabla reporta tres percentiles del CAGR simulado a cada horizonte: la <strong>mediana</strong> (percentil 50, resultado típico), el <strong>P1</strong> (percentil 1: solo el 1% de los escenarios termina por debajo de ese valor — representa un escenario extremadamente adverso) y el <strong>P99</strong> (percentil 99: solo el 1% de los escenarios supera ese valor — representa un escenario excepcionalmente favorable). También reporta la probabilidad de obtener un retorno superior a 0% a cada horizonte.</p>
+        <p class="gl-note">Las trayectorias simuladas se generan remuestreando los retornos históricos reales del portafolio tal como fueron calculados con la configuración actual: el tipo de retorno (nominal o real) y la política de rebalanceo (mensual, anual o sin rebalanceo) seleccionados por el usuario quedan incorporados en la serie de retornos históricos que alimenta el bootstrap. Los resultados asumen que los pesos del portafolio se mantienen constantes en el futuro (no se modelan cambios de estrategia).</p>
+      </div>
+
+    </div><!-- /gl-card acumulación -->
+
+    <!-- ─────────────────────────────────── SECCIÓN 2: RETIROS ───── -->
+    <div class="gl-card">
+      <p class="gl-sectitle">Vista con Retiros Anuales</p>
+
+      <div class="gl-sub">Estadísticos históricos</div>
+
+      <div class="gl-item">
+        <p class="gl-term">Valor final</p>
+        <p class="gl-def">Capital remanente en el portafolio al cierre del período analizado, después de efectuados todos los retiros anuales. Si el portafolio se agotó antes del fin del período, el valor final es cero.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Total retirado</p>
+        <p class="gl-def">Suma acumulada de todos los retiros efectivamente realizados durante el período. Si el portafolio llegó a cero antes de completar el período, los retiros subsiguientes no pudieron efectuarse y no se incluyen en esta suma.</p>
+        <div class="gl-formula">
+          W<sub>t</sub> = min(V<sub>pre,t</sub>, W)&nbsp;&nbsp;(retiro efectivo en el año t)<br>
+          Total retirado = Σ W<sub>t</sub>
+        </div>
+        <p class="gl-note">Si el portafolio no tiene capital suficiente para cubrir el retiro completo (V<sub>pre,t</sub> &lt; W), se retira lo que queda y el portafolio cae a cero. Los años posteriores a la ruina no suman nada al total retirado.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Tasa de retiro</p>
+        <p class="gl-def">Proporción del capital inicial que se retira anualmente. Es la métrica estándar para evaluar la sostenibilidad de un plan de retiros.</p>
+        <div class="gl-formula">Tasa = W / V<sub>0</sub></div>
+        <p class="gl-note">La "Regla del 4%" (Bengen, 1994) establece empíricamente que una tasa del 4% anual sobre el capital inicial permite sostener retiros durante al menos 30 años con alta probabilidad en la mayoría de los escenarios históricos de mercados desarrollados.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Retorno total</p>
+        <p class="gl-def">Riqueza total generada por el portafolio en relación al capital inicial, incluyendo tanto el capital remanente al final como la totalidad de los retiros cobrados. Permite comparar escenarios con distintas tasas de retiro sobre la misma base, capturando el valor total que el portafolio entregó al inversor a lo largo del período.</p>
+        <div class="gl-formula">R<sub>total</sub> = (V<sub>n</sub> + Σ W<sub>t</sub>) / V<sub>0</sub> − 1</div>
+        <p class="gl-note">Esta métrica no es comparable directamente con el retorno total de la vista de acumulación, que no incluye retiros en el numerador. Son conceptualmente distintas y responden a preguntas distintas.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Retorno anualizado (TWR)</p>
+        <p class="gl-def">Time-Weighted Return anualizado. Mide el rendimiento de la estrategia de inversión independientemente de los retiros o aportes realizados a lo largo del tiempo. A diferencia del Money-Weighted Return (MWR o TIR), donde un retiro en un momento de buen rendimiento reduce el retorno calculado porque disminuye el capital expuesto, el TWR pondera cada período por igual sin importar cuánto capital había invertido en ese momento. El retorno de cada mes contribuye de la misma forma al resultado final, ya sea que el portafolio tenía más o menos capital en ese momento.</p>
+        <p class="gl-def">En cada mes t se calcula el retorno de mercado antes del retiro:</p>
+        <div class="gl-formula">
+          r<sub>t</sub> = V<sub>pre,t</sub> / V<sub>t−1</sub> − 1&nbsp;&nbsp;(retorno PRE-retiro)<br>
+          TWR = ( ∏(1 + r<sub>t</sub>) )<sup>12/n</sup> − 1
+        </div>
+        <p class="gl-note">V<sub>pre,t</sub> es el valor del portafolio tras aplicar el retorno del mercado y antes de efectuar el retiro anual. V<sub>t−1</sub> es el valor post-retiro del mes anterior. Dos portafolios con idéntica estrategia de mercado pero distinto calendario de retiros producirán el mismo TWR, lo que hace que esta métrica sea directamente comparable con el CAGR de la vista de acumulación.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Tiempo a ruina</p>
+        <p class="gl-def">Número de años transcurridos hasta que el portafolio alcanza o cae por debajo de cero. Si no ocurre ruina durante el período analizado, se reporta como "sin ruina en la muestra". La ruina histórica no implica necesariamente ruina futura, y viceversa: la probabilidad de ruina prospectiva se estima en la sección de Monte Carlo.</p>
+      </div>
+
+      <div class="gl-sub">Gráficas</div>
+
+      <div class="gl-item">
+        <p class="gl-term">Evolución del portafolio con y sin retiros</p>
+        <p class="gl-def">Dos series temporales sobre el mismo eje. La primera corresponde al portafolio sin retiros (acumulación pura bajo los mismos pesos y política de rebalanceo). La segunda muestra el portafolio con retiros anuales. La brecha entre ambas curvas representa el costo de oportunidad acumulado de los retiros: no solo el capital retirado, sino también el crecimiento compuesto que ese capital habría generado de haberse mantenido invertido.</p>
+        <div class="gl-formula">
+          Con retiros: V<sub>t</sub> = V<sub>pre,t</sub> − W&nbsp;&nbsp;(al cierre de cada año)<br>
+          Sin retiros: V<sub>t</sub> = V<sub>t−1</sub> × (1 + r<sub>t</sub>)
+        </div>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Probabilidad de supervivencia (tarjetas por horizonte)</p>
+        <p class="gl-def">Para cada horizonte temporal (5, 10, 15, 20, 25 y 30 años), muestra la proporción de trayectorias Monte Carlo en las que el portafolio conserva valor positivo al final de ese horizonte. Esta es la métrica central para evaluar la sostenibilidad de un plan de retiros a largo plazo.</p>
+        <div class="gl-formula">P<sub>supervivencia</sub>(h) = #{trayectorias con V<sub>h</sub> &gt; 0} / N<sub>sim</sub></div>
+        <p class="gl-note">Código de colores: verde ≥ 90%, naranja ≥ 70%, rojo &lt; 70%. Estos umbrales son convencionales; la tolerancia adecuada depende del perfil de riesgo y las necesidades específicas de cada inversor.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Simulación Monte Carlo — Con retiros</p>
+        <p class="gl-def">Proyección probabilística a horizontes de 5, 10, 15, 20, 25 y 30 años, con 3.000 trayectorias generadas mediante block bootstrap estacionario (p = 0,083). En cada trayectoria simulada se aplican retiros anuales W al cierre de cada año. Si el portafolio llega a cero, permanece en cero para el resto de la trayectoria.</p>
+        <p class="gl-def">El dropdown permite cambiar entre cuatro vistas:</p>
+        <p class="gl-def"><span class="gl-badge">Supervivencia</span> Fracción de trayectorias con V &gt; 0 al horizonte h.</p>
+        <p class="gl-def"><span class="gl-badge">Retorno total</span> (V<sub>h</sub> + Σ retiros) / V<sub>0</sub> expresado como múltiplo. Percentiles P10, mediana, P90.</p>
+        <p class="gl-def"><span class="gl-badge">Capital final</span> V<sub>h</sub> en dólares. Percentiles P10, mediana, P90.</p>
+        <p class="gl-def"><span class="gl-badge">Retorno anualizado</span> TWR de cada trayectoria = (∏(1 + r<sub>t</sub>))<sup>12/(h×12)</sup> − 1. Percentiles P10, mediana, P90.</p>
+        <p class="gl-note">La tabla incluye la desviación estándar para retorno total y retorno anualizado, como medida de dispersión de los resultados simulados.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Retorno acumulado hacia adelante (con retiros)</p>
+        <p class="gl-def">Para cada mes t de la historia, simula hacia adelante un portafolio que comienza con el capital inicial ingresado y aplica retiros anuales W al cierre de cada año durante la ventana seleccionada. El resultado de cada punto es el retorno total acumulado (o el valor final) al cabo de esa ventana, si el portafolio hubiera arrancado exactamente en ese mes histórico.</p>
+        <div class="gl-formula">
+          Retorno total acumulado = (V<sub>final</sub> + Σ W<sub>t</sub>) / V<sub>0</sub> − 1<br>
+          Valor final = V<sub>final</sub> en dólares
+        </div>
+        <p class="gl-def">El gráfico permite seleccionar dos métricas y dos ventanas temporales:</p>
+        <p class="gl-def"><span class="gl-badge">Retorno total acumulado</span> Incluye capital remanente y suma de retiros efectuados; equivalente al retorno desde el inicio si todo el capital (invertido y retirado) se contabiliza. La línea roja punteada marca el umbral de cero (pérdida neta).</p>
+        <p class="gl-def"><span class="gl-badge">Valor final</span> Capital remanente en dólares al cierre de la ventana, sin sumar los retiros.</p>
+        <p class="gl-def"><span class="gl-badge">5 años</span> Ventana de 60 meses.&nbsp;&nbsp;<span class="gl-badge">10 años</span> Ventana de 120 meses.</p>
+        <p class="gl-note">La línea amarilla punteada es el promedio histórico de la métrica seleccionada a través de todos los puntos de inicio. Esta gráfica usa los retornos reales del portafolio (incorporando el tipo de retorno y la política de rebalanceo elegidos), no simulaciones: muestra qué habría ocurrido en cada ventana histórica efectivamente observada.</p>
+      </div>
+
+    </div><!-- /gl-card retiros -->
+
+    <!-- ─────────────────────────────────── SECCIÓN 3: OBJETIVOS ─── -->
+    <div class="gl-card">
+      <p class="gl-sectitle">Vista con Objetivos Específicos (Goal-Based Investing)</p>
+
+      <div class="gl-sub">Metodología general</div>
+
+      <div class="gl-item">
+        <p class="gl-def">El módulo de Portafolio con Objetivos (GBI) resuelve el siguiente problema de optimización: dado un conjunto de objetivos financieros {(G<sub>k</sub>, T<sub>k</sub>, c<sub>k</sub>)}, donde G<sub>k</sub> es el monto requerido, T<sub>k</sub> el plazo en años y c<sub>k</sub> la tolerancia al riesgo de incumplimiento, determinar el capital mínimo A<sub>k</sub> y la composición óptima x<sub>k</sub> de cada sub-portafolio, de forma que la probabilidad de alcanzar G<sub>k</sub> al plazo T<sub>k</sub> sea al menos 1 − c<sub>k</sub>.</p>
+        <p class="gl-def">El capital residual V<sub>0</sub> − Σ A<sub>k</sub> se destina a un portafolio de crecimiento sin restricción de monto objetivo.</p>
+        <div class="gl-formula">
+          Problema por objetivo k:<br>
+          min A<sub>k</sub>&nbsp;&nbsp;sujeto a P( V<sub>k</sub>(T<sub>k</sub>) ≥ G<sub>k</sub> ) ≥ 1 − c<sub>k</sub><br>
+          con x<sub>k</sub> ∈ Δ<sub>n</sub> (simplex unitario, pesos ≥ 0, Σ = 1)
+        </div>
+        <p class="gl-note">La optimización se resuelve mediante bisección sobre A<sub>k</sub> (20 iteraciones) combinada con minimización interna del CVaR (80 iteraciones de gradiente proyectado) como proxy diferenciable de la probabilidad de éxito. Cada evaluación usa 5.000 trayectorias de bootstrap multi-activo.</p>
+      </div>
+
+      <div class="gl-sub">Estadísticos por objetivo</div>
+
+      <div class="gl-item">
+        <p class="gl-term">Capital requerido (A<sub>k</sub>)</p>
+        <p class="gl-def">Monto mínimo que debe destinarse hoy al sub-portafolio del objetivo k para alcanzar G<sub>k</sub> al plazo T<sub>k</sub> con la probabilidad de éxito requerida. Se determina por bisección: se prueban valores de A<sub>k</sub> en el intervalo [1, G<sub>k</sub>] hasta encontrar el menor valor factible.</p>
+        <p class="gl-note">A<sub>k</sub> &lt; G<sub>k</sub> siempre que el portafolio tenga retorno esperado positivo y el plazo sea suficiente. La diferencia G<sub>k</sub> − A<sub>k</sub> representa el "trabajo" que se espera que haga el mercado durante T<sub>k</sub> años.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Probabilidad de éxito (P<sub>k</sub>)</p>
+        <p class="gl-def">Fracción de escenarios simulados en los que el sub-portafolio k alcanza o supera G<sub>k</sub> al vencimiento. Es la restricción de factibilidad del problema de optimización.</p>
+        <div class="gl-formula">P<sub>k</sub> = (1/N) × Σ<sub>s</sub> 1{ V<sub>k</sub><sup>s</sup>(T<sub>k</sub>×12) ≥ G<sub>k</sub> }</div>
+        <p class="gl-note">Un c<sub>k</sub> bajo (por ejemplo 5%, es decir P<sub>k</sub> ≥ 95%) implica mayor conservadurismo: A<sub>k</sub> será más alto pero el riesgo de no cumplir el objetivo es menor. Un c<sub>k</sub> alto (por ejemplo 30%) permite un A<sub>k</sub> menor, liberando más capital para el portafolio de crecimiento, a costa de mayor incertidumbre.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">CVaR (Conditional Value at Risk)</p>
+        <p class="gl-def">Pérdida esperada media en el peor (1−α)% de escenarios. Mide el riesgo de cola del objetivo: cuánto capital falta en promedio en los peores casos simulados. A diferencia de la probabilidad de éxito (que solo cuenta si se llega o no a G<sub>k</sub>), el CVaR cuantifica la magnitud del déficit en los escenarios adversos.</p>
+        <div class="gl-formula">
+          shortfall<sub>s</sub> = max(G<sub>k</sub> − V<sub>k</sub><sup>s</sup>(T<sub>k</sub>), 0)<br>
+          n<sub>tail</sub> = ⌊N × (1 − α)⌋&nbsp;&nbsp;con α = 0,95<br>
+          CVaR<sub>α</sub> = (1 / n<sub>tail</sub>) × Σ shortfall<sub>s</sub>&nbsp;&nbsp;(suma sobre los n<sub>tail</sub> peores escenarios)
+        </div>
+        <p class="gl-note">El CVaR se utiliza también como función objetivo durante la optimización interna de los pesos x<sub>k</sub>, ya que es convexo y diferenciable (a diferencia de la probabilidad directa, que no lo es). Esto permite aplicar gradiente proyectado para encontrar la composición óptima del sub-portafolio.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Retorno esperado del portafolio</p>
+        <p class="gl-def">CAGR anualizado esperado del portafolio óptimo x<sub>k</sub>, calculado analíticamente sobre la serie histórica de retornos.</p>
+        <div class="gl-formula">μ<sub>k</sub> = Σ<sub>i</sub> x<sub>k,i</sub> × μ<sub>i</sub>&nbsp;&nbsp;(anualizado: × 12)</div>
+        <p class="gl-note">donde μ<sub>i</sub> es el retorno medio mensual histórico del activo i.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Volatilidad del portafolio</p>
+        <p class="gl-def">Desviación estándar anualizada del portafolio óptimo calculada sobre la muestra histórica de retornos.</p>
+        <div class="gl-formula">σ<sub>k</sub> = √( x<sub>k</sub><sup>T</sup> Σ x<sub>k</sub> ) × √12</div>
+        <p class="gl-note">Σ es la matriz de covarianzas de retornos mensuales de todos los activos, estimada sobre la muestra histórica completa.</p>
+      </div>
+
+      <div class="gl-sub">Bootstrap multi-activo (optimización GBI)</div>
+
+      <div class="gl-item">
+        <p class="gl-def">A diferencia del bootstrap escalar usado en los módulos de acumulación y retiros —donde el portafolio ya está ponderado y se genera una única serie de retornos del portafolio—, el optimizador GBI genera escenarios multi-activo: en cada paso temporal se remuestrea simultáneamente el vector completo de retornos de todos los activos disponibles.</p>
+        <p class="gl-def">Esto es necesario porque durante la optimización los pesos x<sub>k</sub> varían iterativamente: para evaluar una nueva combinación de pesos, se necesitan los retornos individuales de cada activo en cada escenario, no el retorno ya ponderado de una composición fija.</p>
+        <div class="gl-formula">
+          En cada escenario s y mes t: [r<sub>1,t</sub>, r<sub>2,t</sub>, …, r<sub>n,t</sub>] ← fila idx de la matriz histórica R<br>
+          El mismo índice idx se aplica a todos los activos simultáneamente.<br>
+          Con probabilidad p = 0,083: idx ← aleatorio ∈ [0, T−1]<br>
+          Con probabilidad 1 − p: idx ← (idx + 1) mod T
+        </div>
+        <p class="gl-note">Al usar el mismo índice temporal para todos los activos, la estructura de correlación histórica entre activos queda intacta en los escenarios simulados: si en cierto mes histórico las acciones cayeron junto con el crédito, esa correlación se reproduce fielmente en las trayectorias sintéticas. Esto evita subestimar el riesgo de cola conjunto y el beneficio artificial de diversificación.</p>
+      </div>
+
+      <div class="gl-sub">Gráfica de simulaciones históricas</div>
+
+      <div class="gl-item">
+        <p class="gl-term">¿Qué muestra?</p>
+        <p class="gl-def">La evolución del patrimonio total (todos los sub-portafolios de objetivos + portafolio de crecimiento) a lo largo de 120 meses (10 años), para cada ventana histórica de 10 años disponible en los datos. Se destacan en verde oscuro la ventana con mejor CAGR y en rojo oscuro la peor.</p>
+        <p class="gl-def">Las líneas verticales punteadas señalan los meses de vencimiento de cada objetivo (T<sub>k</sub> × 12). Si una serie muere por insuficiencia de capital, el patrimonio cae a cero y permanece allí hasta el mes 120.</p>
+      </div>
+
+      <div class="gl-item">
+        <p class="gl-term">Construcción de cada serie</p>
+        <p class="gl-def">Se toman todas las ventanas de 120 meses consecutivos disponibles en los datos históricos, desplazando el inicio en pasos de 6 meses (se obtienen tantas ventanas como permita la longitud de la muestra menos 10 años). Para cada ventana:</p>
+        <p class="gl-def"><strong>1. Aplicar retornos de mercado:</strong> cada sub-portafolio k y el portafolio de crecimiento crecen con sus respectivos retornos históricos mes a mes, bajo la política de rebalanceo seleccionada.</p>
+        <p class="gl-def"><strong>2. Retorno mensual pre-evento (metodología TWR):</strong></p>
+        <div class="gl-formula">r<sub>t</sub> = W<sub>pre,t</sub> / W<sub>t−1</sub> − 1</div>
+        <p class="gl-def">donde W<sub>pre,t</sub> es la riqueza total después del mercado y antes de cualquier evento de objetivo, y W<sub>t−1</sub> es la riqueza post-evento del mes anterior. Esto garantiza que los eventos de objetivo no distorsionen la medición del rendimiento de la estrategia.</p>
+        <p class="gl-def"><strong>3. Eventos de objetivo (al mes T<sub>k</sub> × 12):</strong> Se calcula el excedente o déficit del sub-portafolio k:</p>
+        <div class="gl-formula">
+          superávit<sub>k</sub> = V<sub>k</sub>(T<sub>k</sub>) − G<sub>k</sub><br>
+          Pool ← Pool + superávit<sub>k</sub>
+        </div>
+        <p class="gl-def">Si Pool &lt; 0 (déficit), se cubre en cascada desde los sub-portafolios de objetivos posteriores (en orden cronológico). Si el déficit agota todos los sub-portafolios, la serie muere.</p>
+        <p class="gl-note">Solo se grafican ventanas que comienzan al menos 10 años antes del último dato disponible, garantizando trayectorias completas de 121 puntos (meses 0 a 120).</p>
+      </div>
+
+      <div class="gl-sub">Resumen de simulaciones históricas</div>
+
+      <div class="gl-item">
+        <p class="gl-def"><strong>N simulaciones:</strong> Número total de ventanas de 10 años analizadas.</p>
+        <p class="gl-def"><strong>CAGR promedio:</strong> Media aritmética del TWR anualizado de todas las ventanas. Refleja el rendimiento típico que la estrategia GBI habría producido históricamente.</p>
+        <div class="gl-formula">CAGR<sub>prom</sub> = (1/N) × Σ CAGR<sub>s</sub>&nbsp;&nbsp;donde CAGR<sub>s</sub> = (∏(1+r<sub>t</sub>))<sup>12/T</sup> − 1</div>
+        <p class="gl-def"><strong>Volatilidad promedio:</strong> Media de la desviación estándar anualizada de los retornos mensuales pre-evento de cada ventana.</p>
+        <p class="gl-def"><strong>Mejor / peor CAGR:</strong> Identifica las fechas de inicio de las ventanas con el mayor y menor rendimiento anualizado, junto con su valor numérico.</p>
+        <p class="gl-def"><strong>Simulaciones fallidas por objetivo:</strong> Para cada objetivo k, el número de ventanas en las que el sub-portafolio no alcanzó G<sub>k</sub> al vencimiento T<sub>k</sub> (es decir, deathMonth ≤ T<sub>k</sub> × 12 o la serie falló ese objetivo en la cascada), junto con las fechas de inicio de esas ventanas.</p>
+        <p class="gl-note">Una ventana "fallida" no implica necesariamente que todos los objetivos se incumplieron: el sistema de cascada puede compensar el déficit de un objetivo con el superávit de otros, pero si la suma total es insuficiente, la serie muere y todos los objetivos posteriores quedan incumplidos.</p>
+      </div>
+
+    </div><!-- /gl-card objetivos -->
+
+  </div><!-- /glossaryView -->
 
 </div>
 
 </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="portfolioOptimizer.js"></script>
+<script src="goalUI.js"></script>
+<script src="pdfExport.js"></script>
+<script src="app.js"></script>
 
 <script>
 
@@ -525,6 +1116,9 @@ for (let t = 1; t < marketDataNominal.length; t++) {
 
     console.log("Datos nominales:", marketDataNominal);
     console.log("Datos reales:", marketDataReal);
+
+    iniciarOptimizerWorker(marketDataNominal, false);
+    iniciarOptimizerWorker(marketDataReal, true);
   }
 });
 
@@ -570,6 +1164,7 @@ assets.forEach(asset => {
   if (typeof graficarComposicion === 'function') {
     graficarComposicion(document.getElementById('composicionSelector').value);
   }
+  if (typeof actualizarPuntoPortafolio === 'function') actualizarPuntoPortafolio();
   });
 });
 
@@ -637,14 +1232,26 @@ function setProfile(type) {
   if (typeof graficarComposicion === 'function') {
     graficarComposicion(document.getElementById('composicionSelector').value);
   }
+  if (typeof actualizarPuntoPortafolio === 'function') actualizarPuntoPortafolio();
 }
 
 updateTotal();
 updateAllocationChart();
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="app.js"></script>
+<button id="pdf-export-btn" onclick="exportarPDF()" style="
+  position:fixed; bottom:48px; right:20px; z-index:200;
+  display:flex; align-items:center; gap:6px;
+  padding:9px 16px;
+  background:#374151; color:white;
+  border:none; border-radius:8px;
+  font-size:13px; font-family:'Inter',sans-serif;
+  cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.25);
+  transition:background 0.15s;
+" onmouseover="this.style.background='#1f2937'" onmouseout="this.style.background='#374151'">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+  Exportar PDF
+</button>
 
 <div class="disclaimer">
   La información disponible en esta presentación es solo a modo informativo. En ningún caso debe considerarse esta información como asesoramiento de inversión, sugerencias de ventas, compra, inversiones u operaciones de naturaleza alguna. El uso de la información, análisis e ideas brindadas son de exclusiva responsabilidad de quienes decidan utilizarla. Las valuaciones de los productos pueden subir o bajar como consecuencia de las evoluciones de los mercados. Se ha obtenido la información y los materiales incluidos en esta presentación de fuentes consideradas como fiables, pero, si bien se han tomado medidas razonables para asegurarse de que la información contenida sea correcta, no se garantiza que sea exacta, completa, o actualizada y, consecuentemente, no debe confiarse en ella como si lo fuera. Está prohibida su distribución. Para uso profesional solamente.

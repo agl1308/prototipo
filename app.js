@@ -1,6 +1,9 @@
 // ==========================
 // VARIABLES GLOBALES
 // ==========================
+var efficientFrontierChartInstance = null;
+var frontierCacheData     = null;   // nominal
+var frontierCacheDataReal = null;   // real
 let allocationChart;
 let composicionChartInstance;
 
@@ -27,15 +30,27 @@ let forwardReturnData    = null;
 
 
 
-function mostrarAcumulacion() {
-    document.getElementById("accumulationView").style.display = "block";
-    document.getElementById("withdrawalView").style.display = "none";
+function showView(view) {
+    document.getElementById('accumulationView').style.display = view === 'accumulation' ? 'block' : 'none';
+    document.getElementById('withdrawalView').style.display   = view === 'withdrawal'   ? 'block' : 'none';
+    document.getElementById('goalsView').style.display        = view === 'goals'        ? 'block' : 'none';
+    document.getElementById('glossaryView').style.display     = view === 'glossary'     ? 'block' : 'none';
+
+    document.querySelectorAll('.nav-btn').forEach(function(btn, idx) {
+        btn.classList.toggle('active',
+            (view === 'accumulation' && idx === 0) ||
+            (view === 'withdrawal'   && idx === 1) ||
+            (view === 'goals'        && idx === 2)
+        );
+    });
+
+    if (view === 'goals') {
+        if (typeof gbiInicializar === 'function') gbiInicializar();
+    }
 }
 
-function mostrarRetiros() {
-    document.getElementById("accumulationView").style.display = "none";
-    document.getElementById("withdrawalView").style.display = "block";
-}
+function mostrarAcumulacion() { showView('accumulation'); }
+function mostrarRetiros()     { showView('withdrawal'); }
 
 // ==========================
 // UTILIDADES
@@ -84,7 +99,7 @@ function agruparAssetAllocation(weights) {
     // COLORES FIJOS (CLAVE PRO)
     // ==========================
     const colorMap = {
-        "Acciones": "#1f3a8a",       // azul fuerte
+        "Renta Variable": "#1f3a8a",  // azul fuerte
         "Renta Fija": "#60a5fa",     // celeste
         "Money Market": "#9ca3af",   // gris medio
         "Real Estate": "#a78bfa",    // violeta suave
@@ -99,7 +114,7 @@ function agruparAssetAllocation(weights) {
     let items = [];
 
     if (acciones > 0) {
-        items.push({ label: "Acciones", value: acciones * 100 });
+        items.push({ label: "Renta Variable", value: acciones * 100 });
     }
 
     if (rentaFija > 0) {
@@ -213,7 +228,7 @@ function updateAllocationChart() {
 
                         let lines = [`${label}: ${value}%`];
 
-                        if (label === "Acciones") {
+                        if (label === "Renta Variable") {
                             const b = grouped.breakdown.acciones;
 
                             if (b["USA"] > 0) lines.push(`USA: ${b["USA"].toFixed(1)}%`);
@@ -996,7 +1011,9 @@ function calcularStatsRetiros(conRetiros, initialValue) {
 
     // Retorno total: todo el valor generado (capital restante + lo cobrado)
     const retornoTotal      = (vFinal + totalWithdrawn) / initialValue - 1;
-    const retornoAnualizado = Math.pow((vFinal + totalWithdrawn) / initialValue, 12 / n) - 1;
+    // TWR: retornos pre-retiro ya calculados en calcularPortafolioConRetiros (estándar GIPS/CFA)
+    const cum_twr           = retornos.reduce((acc, r) => acc * (1 + r), 1);
+    const retornoAnualizado = Math.pow(Math.max(cum_twr, 0), 12 / n) - 1;
 
     // Ruina histórica
     const ruinaIdx  = valores.findIndex(v => v <= 0);
@@ -1060,7 +1077,7 @@ function mostrarStatsRetiros(stats, initialValue, withdrawal) {
 // ==========================
 function correrMCSupervivencia(retornos, initialValue, withdrawal) {
 
-    const simulaciones = 2000;
+    const simulaciones = 3000;
     const horizontes   = [5, 10, 15, 20, 25, 30];
     const mesesMax     = 30 * 12;
 
@@ -2180,5 +2197,315 @@ function graficarRolling(rolling, fechas) {
     });
 }
 
+
+// ==========================
+// FRONTERA EFICIENTE
+// ==========================
+
+// Acciones USA/Europa/EM → azules | RF IG/HY/EM → verdes | resto → grises
+const FRONTIER_COLORS = [
+  '#1e3a8a', // Acciones USA      — azul oscuro
+  '#2563eb', // Acciones Europa   — azul medio
+  '#93c5fd', // Acciones EM       — azul claro
+  '#14532d', // RF Global IG      — verde oscuro
+  '#16a34a', // RF Global HY      — verde medio
+  '#86efac', // RF EM             — verde claro
+  '#1f2937', // Money Market      — gris muy oscuro
+  '#4b5563', // Real Estate       — gris oscuro
+  '#6b7280', // Infrastructure    — gris medio
+  '#9ca3af', // Oro               — gris claro
+  '#d1d5db'  // Commodities       — gris muy claro
+];
+
+var _frontierSlidersBound = false;
+
+function iniciarOptimizerWorker(marketData, isReal) {
+  if (!window.Worker) {
+    var el = document.getElementById('frontierLoadingState');
+    if (el) el.textContent = 'Tu browser no soporta Web Workers. Actualizá el browser.';
+    return;
+  }
+  if (!isReal) mostrarFrontierSpinner(true);
+  var worker = new Worker('optimizerWorker.js');
+  worker.postMessage({ marketData: marketData });
+  worker.onmessage = function(e) {
+    if (e.data.error) {
+      console.error('Optimizer error:', e.data.error);
+      if (!isReal) mostrarFrontierSpinner(false);
+      return;
+    }
+    if (isReal) {
+      frontierCacheDataReal = e.data;
+      var rt = document.getElementById('returnType');
+      var esReal = rt && rt.value === 'real';
+      // Si el usuario está en acumulación con "real", redibujar frontera
+      var accView = document.getElementById('accumulationView');
+      if (esReal && accView && accView.style.display !== 'none') {
+        renderEfficientFrontier(e.data);
+      }
+      // (goals view has no vol slider in the new version)
+    } else {
+      frontierCacheData = e.data;
+      renderEfficientFrontier(e.data);
+      mostrarFrontierSpinner(false);
+      registrarSliderListenersFrontera();
+    }
+    worker.terminate();
+  };
+  worker.onerror = function(e) {
+    console.error('Worker error:', e);
+    if (!isReal) mostrarFrontierSpinner(false);
+  };
+}
+
+function mostrarFrontierSpinner(visible) {
+  var spinner = document.getElementById('frontierLoadingState');
+  var container = document.getElementById('frontierChartContainer');
+  if (!spinner || !container) return;
+  if (visible) {
+    spinner.style.display = 'flex';
+    container.style.display = 'none';
+  } else {
+    spinner.style.display = 'none';
+    container.style.display = 'block';
+  }
+}
+
+function registrarSliderListenersFrontera() {
+  if (_frontierSlidersBound) return;
+  _frontierSlidersBound = true;
+  Object.values(slidersMap).forEach(function(slider) {
+    slider.addEventListener('input', actualizarPuntoPortafolio);
+  });
+}
+
+function actualizarPuntoPortafolio() {
+  var cache = _activeFrontierCache();
+  if (!cache || !efficientFrontierChartInstance) return;
+  var weights = getWeights();
+  var mu = cache.mu;
+  var Sigma = cache.Sigma;
+  var assets = cache.assets;
+  var w = assets.map(function(a) { return weights[a] || 0; });
+
+  var ret_p = w.reduce(function(sum, wi, i) { return sum + wi * mu[i]; }, 0);
+  var var_p = 0;
+  for (var i = 0; i < w.length; i++)
+    for (var j = 0; j < w.length; j++)
+      var_p += w[i] * Sigma[i][j] * w[j];
+  var vol_p = Math.sqrt(Math.max(0, var_p));
+
+  var ds = efficientFrontierChartInstance.data.datasets;
+  ds[ds.length - 1].data = [{ x: vol_p * 100, y: ret_p * 100, weights: weights }];
+  efficientFrontierChartInstance.update('none');
+}
+
+function renderEfficientFrontier(data) {
+  if (efficientFrontierChartInstance) {
+    efficientFrontierChartInstance.destroy();
+    efficientFrontierChartInstance = null;
+  }
+
+  var frontierPoints = data.frontierPoints;
+  var assetPoints = data.assetPoints;
+  var mu = data.mu;
+  var Sigma = data.Sigma;
+  var assets = data.assets;
+  var maxSharpeIndex = data.maxSharpeIndex;
+
+  var weights0 = getWeights();
+  var w0 = assets.map(function(a) { return weights0[a] || 0; });
+  var ret_p0 = w0.reduce(function(s, wi, i) { return s + wi * mu[i]; }, 0);
+  var var_p0 = 0;
+  for (var ii = 0; ii < w0.length; ii++)
+    for (var jj = 0; jj < w0.length; jj++)
+      var_p0 += w0[ii] * Sigma[ii][jj] * w0[jj];
+  var vol_p0 = Math.sqrt(Math.max(0, var_p0));
+
+  var datasets = [];
+
+  datasets.push({
+    type: 'scatter',
+    showLine: true,
+    tension: 0.3,
+    label: 'Frontera eficiente',
+    data: frontierPoints.map(function(p) { return { x: p.vol * 100, y: p.ret * 100, weights: p.weights }; }),
+    borderColor: '#64748b',
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    pointRadius: 0,
+    pointHoverRadius: 5,
+    fill: false
+  });
+
+  assetPoints.forEach(function(ap, i) {
+    datasets.push({
+      type: 'scatter',
+      showLine: false,
+      label: ap.nombre,
+      data: [{ x: ap.vol * 100, y: ap.ret * 100, nombre: ap.nombre }],
+      pointStyle: 'rectRot',
+      pointRadius: 7,
+      pointHoverRadius: 9,
+      backgroundColor: FRONTIER_COLORS[i % FRONTIER_COLORS.length],
+      borderColor: FRONTIER_COLORS[i % FRONTIER_COLORS.length]
+    });
+  });
+
+  datasets.push({
+    type: 'scatter',
+    showLine: false,
+    label: 'Mi portafolio',
+    data: [{ x: vol_p0 * 100, y: ret_p0 * 100, weights: weights0 }],
+    pointStyle: 'circle',
+    pointRadius: 11,
+    pointHoverRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderColor: '#1e293b',
+    borderWidth: 2.5
+  });
+
+  var ctx = document.getElementById('efficientFrontierChart');
+  efficientFrontierChartInstance = new Chart(ctx, {
+    type: 'scatter',
+    data: { datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 0 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Volatilidad anualizada (%)' },
+          ticks: { callback: function(v) { return v.toFixed(1) + '%'; } },
+          grid: { color: 'rgba(0,0,0,0.06)' }
+        },
+        y: {
+          title: { display: true, text: 'Retorno anualizado (%)' },
+          ticks: { callback: function(v) { return v.toFixed(1) + '%'; } },
+          grid: { color: 'rgba(0,0,0,0.06)' }
+        }
+      }
+    }
+  });
+
+  _setupFrontierTooltip(efficientFrontierChartInstance, ctx, assets, data);
+  _renderFrontierLegend(assets, frontierPoints);
+}
+
+function _assetColorMap(assets) {
+  var map = {};
+  assets.forEach(function(a, i) { map[a] = FRONTIER_COLORS[i % FRONTIER_COLORS.length]; });
+  return map;
+}
+
+function _compositionRows(weightsObj, colorMap) {
+  var entries = Object.entries(weightsObj)
+    .filter(function(e) { return e[1] > 0; })
+    .sort(function(a, b) { return b[1] - a[1]; });
+
+  return entries.map(function(e) {
+    var pct = (e[1] * 100).toFixed(1);
+    var barW = Math.round(e[1] * 80);
+    var color = colorMap[e[0]] || '#999';
+    return '<div style="display:flex;align-items:center;gap:6px;margin-top:4px;">' +
+      '<div style="width:' + barW + 'px;min-width:2px;height:3px;border-radius:2px;background:' + color + ';flex-shrink:0;"></div>' +
+      '<span style="font-size:12px;color:#444;">' + e[0] + '</span>' +
+      '<span style="font-size:12px;color:#888;margin-left:auto;padding-left:8px;">' + pct + '%</span>' +
+      '</div>';
+  }).join('');
+}
+
+function _setupFrontierTooltip(chartInst, canvas, assets, data) {
+  var tooltip = document.getElementById('frontierTooltip');
+  var container = document.getElementById('frontierChartContainer');
+  if (!tooltip || !container) return;
+
+  var colorMap = _assetColorMap(assets);
+  var SEP = '<hr style="border:none;border-top:1px solid #eee;margin:8px 0;">';
+
+  canvas.addEventListener('mousemove', function(e) {
+    var elements = chartInst.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false);
+    if (!elements.length) { tooltip.style.display = 'none'; return; }
+
+    var el = elements[0];
+    var dsIdx = el.datasetIndex;
+    var ds = chartInst.data.datasets[dsIdx];
+    var pt = ds.data[el.index];
+    var retStr = pt.y.toFixed(2) + '%';
+    var volStr = pt.x.toFixed(2) + '%';
+    var totalDatasets = chartInst.data.datasets.length;
+    var html = '';
+
+    if (dsIdx === 0) {
+      html = '<div style="font-weight:600;font-size:14px;margin-bottom:4px;">Portafolio eficiente</div>';
+      html += '<div style="font-size:12px;color:#555;">Retorno: <b>' + retStr + '</b></div>';
+      html += '<div style="font-size:12px;color:#555;">Volatilidad: <b>' + volStr + '</b></div>';
+      if (pt.weights && Object.keys(pt.weights).length) html += SEP + _compositionRows(pt.weights, colorMap);
+    } else if (dsIdx === totalDatasets - 1) {
+      html = '<div style="font-weight:600;font-size:14px;margin-bottom:4px;">Mi portafolio</div>';
+      html += '<div style="font-size:12px;color:#555;">Retorno: <b>' + retStr + '</b></div>';
+      html += '<div style="font-size:12px;color:#555;">Volatilidad: <b>' + volStr + '</b></div>';
+      if (pt.weights) html += SEP + _compositionRows(pt.weights, colorMap);
+    } else {
+      var nombre = pt.nombre || ds.label;
+      html = '<div style="font-weight:600;font-size:14px;margin-bottom:4px;">' + nombre + '</div>';
+      html += '<div style="font-size:12px;color:#555;">Retorno: <b>' + retStr + '</b></div>';
+      html += '<div style="font-size:12px;color:#555;">Volatilidad: <b>' + volStr + '</b></div>';
+      var singleW = {}; singleW[nombre] = 1;
+      html += SEP + _compositionRows(singleW, colorMap);
+    }
+
+    tooltip.innerHTML = html;
+    tooltip.style.display = 'block';
+
+    var rect = container.getBoundingClientRect();
+    var mouseX = e.clientX - rect.left;
+    var mouseY = e.clientY - rect.top;
+    var left = mouseX > rect.width / 2 ? mouseX - 254 : mouseX + 14;
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = Math.max(0, mouseY - 20) + 'px';
+  });
+
+  canvas.addEventListener('mouseleave', function() {
+    tooltip.style.display = 'none';
+  });
+}
+
+function _renderFrontierLegend(assets, frontierPoints) {
+  var legendEl = document.getElementById('frontierLegend');
+  if (!legendEl) return;
+
+  var usedAssets = {};
+  frontierPoints.forEach(function(p) {
+    Object.keys(p.weights || {}).forEach(function(k) { usedAssets[k] = true; });
+  });
+
+  var html = '';
+  assets.forEach(function(a, i) {
+    var color = FRONTIER_COLORS[i % FRONTIER_COLORS.length];
+    var opacity = usedAssets[a] ? '1' : '0.4';
+    html += '<div style="display:flex;align-items:center;gap:5px;opacity:' + opacity + ';">' +
+      '<div style="width:10px;height:10px;background:' + color + ';border-radius:2px;flex-shrink:0;"></div>' +
+      '<span style="font-size:12px;color:#444;">' + a + '</span></div>';
+  });
+
+  html += '<div style="display:flex;align-items:center;gap:5px;">' +
+    '<div style="width:10px;height:10px;background:rgba(255,255,255,0.95);border:2px solid #1e293b;border-radius:50%;flex-shrink:0;box-sizing:border-box;"></div>' +
+    '<span style="font-size:12px;color:#444;">Mi portafolio</span></div>';
+
+  legendEl.innerHTML = html;
+}
+
+
+// ── Frontier cache helper (used by efficient frontier chart) ──────────────────
+
+function _activeFrontierCache() {
+  var rt = document.getElementById('returnType');
+  return (rt && rt.value === 'real') ? frontierCacheDataReal : frontierCacheData;
+}
 
 
